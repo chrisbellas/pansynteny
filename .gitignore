@@ -1,0 +1,10 @@
+# Deployment-specific: real absolute paths for one machine/dataset.
+# See pangenome_viewer.config.example for the template.
+pangenome_viewer.config
+
+# pgv_lookup.py's byte-offset index cache -- rebuild with
+# `python3 pgv_lookup.py --build-index`.
+cluster_offsets.json
+
+__pycache__/
+*.pyc

@@ -1,0 +1,763 @@
+<meta charset="utf-8">
+<title>Pangenome gene-order viewer</title>
+<style>
+:root {
+  --surface-1:      #fcfcfb;
+  --page:           #f9f9f7;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --gridline:       #e1e0d9;
+  --baseline:       #c3c2b7;
+  --border:         rgba(0,0,0,0.10);
+  --other-fill:     #d8d6cd;
+  --other-stroke:   #b6b4aa;
+  --anchor-fill:    #0b0b0b;
+  --anchor-stroke:  #0b0b0b;
+  --s1: #2a78d6; --s2: #008300; --s3: #e87ba4; --s4: #eda100;
+  --s5: #1baf7a; --s6: #eb6834; --s7: #4a3aa7; --s8: #e34948;
+  --rfe-other-fill: #fab219;
+  --rfe-other-stroke: #0b0b0b;
+  --section-bg: #f2f1ec;
+  --seq-line: rgba(11,11,11,0.28);
+  --accent: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+    --other-fill: #3a3a37; --other-stroke: #52514e;
+    --anchor-fill: #ffffff; --anchor-stroke: #ffffff;
+    --s1: #3987e5; --s2: #008300; --s3: #d55181; --s4: #c98500;
+    --s5: #199e70; --s6: #d95926; --s7: #9085e9; --s8: #e66767;
+    --rfe-other-fill: #d99a1e;
+    --rfe-other-stroke: #ffffff;
+    --section-bg: #202020;
+    --seq-line: rgba(255,255,255,0.55);
+    --accent: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  --surface-1: #1a1a19; --page: #0d0d0d;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+  --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+  --other-fill: #3a3a37; --other-stroke: #52514e;
+  --anchor-fill: #ffffff; --anchor-stroke: #ffffff;
+  --s1: #3987e5; --s2: #008300; --s3: #d55181; --s4: #c98500;
+  --s5: #199e70; --s6: #d95926; --s7: #9085e9; --s8: #e66767;
+  --rfe-other-fill: #d99a1e;
+  --rfe-other-stroke: #ffffff;
+  --section-bg: #202020;
+  --seq-line: rgba(255,255,255,0.55);
+  --accent: #3987e5;
+}
+:root[data-theme="light"] {
+  --surface-1: #fcfcfb; --page: #f9f9f7;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+  --gridline: #e1e0d9; --baseline: #c3c2b7; --border: rgba(0,0,0,0.10);
+  --other-fill: #d8d6cd; --other-stroke: #b6b4aa;
+  --anchor-fill: #0b0b0b; --anchor-stroke: #0b0b0b;
+  --s1: #2a78d6; --s2: #008300; --s3: #e87ba4; --s4: #eda100;
+  --s5: #1baf7a; --s6: #eb6834; --s7: #4a3aa7; --s8: #e34948;
+  --rfe-other-fill: #fab219; --rfe-other-stroke: #0b0b0b;
+  --section-bg: #f2f1ec;
+  --seq-line: rgba(11,11,11,0.28);
+  --accent: #2a78d6;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 32px 24px 80px; background: var(--page); color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.wrap { max-width: 1800px; margin: 0 auto; }
+h1 { font-size: 20px; font-weight: 650; margin: 0 0 4px; }
+h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
+.subtitle { color: var(--text-secondary); font-size: 13.5px; margin: 0 0 4px; line-height: 1.5; }
+.note { color: var(--text-muted); font-size: 12.5px; margin: 0 0 22px; line-height: 1.5; max-width: 980px; }
+.note b { color: var(--text-secondary); font-weight: 600; }
+.note code { font-family: ui-monospace, monospace; }
+
+.search-bar { position: relative; max-width: 640px; margin: 0 0 28px; }
+.search-bar input {
+  width: 100%; font: inherit; font-size: 14px; padding: 10px 14px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1);
+  color: var(--text-primary); outline: none;
+}
+.search-bar input:focus { border-color: var(--accent); }
+.search-results {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  max-height: 420px; overflow-y: auto; background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  z-index: 20;
+}
+.search-result { padding: 9px 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.search-result:last-child { border-bottom: none; }
+.search-result:hover { background: var(--section-bg); }
+.sr-top { display: flex; align-items: center; gap: 8px; }
+.sr-cluster { font-family: ui-monospace, monospace; font-size: 12.5px; font-weight: 650; }
+.sr-sub { color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+.rfe-badge {
+  font-size: 10px; font-weight: 650; color: var(--rfe-other-fill);
+  border: 1px solid var(--rfe-other-fill); border-radius: 4px; padding: 1px 5px;
+}
+.search-empty { padding: 14px; color: var(--text-muted); font-size: 12.5px; }
+
+.status { color: var(--text-secondary); font-size: 13.5px; margin: 0 0 24px; }
+
+.legend {
+  display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center;
+  padding: 12px 16px; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; margin-bottom: 18px; font-size: 12px; color: var(--text-secondary);
+}
+.legend-item { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.swatch { width: 13px; height: 9px; border-radius: 2px; flex: none; }
+.swatch.anchor-swatch { position: relative; }
+.swatch.anchor-swatch::after {
+  content: ""; position: absolute; inset: -2px; border: 1.5px solid var(--anchor-stroke); border-radius: 3px;
+}
+
+.header-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.window-control {
+  display: flex; align-items: center; gap: 7px; font-size: 12.5px;
+  color: var(--text-secondary); white-space: nowrap;
+}
+.window-control select {
+  font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text-primary); cursor: pointer;
+}
+
+.filter-bar {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  margin: 0 0 18px; font-size: 12.5px; color: var(--text-secondary);
+}
+.filter-box { display: flex; align-items: center; gap: 6px; }
+.filter-box select {
+  font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text-primary); cursor: pointer; max-width: 260px;
+}
+.filter-box select:disabled { opacity: 0.5; cursor: default; }
+.filter-box-stat { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.filter-status { color: var(--text-muted); }
+
+.chart-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
+svg { display: block; }
+
+.section-label { fill: var(--text-primary); font-size: 12px; font-weight: 650; }
+.section-count { fill: var(--text-muted); font-size: 11px; font-weight: 400; }
+.section-bg { fill: var(--section-bg); }
+
+.row-label { fill: var(--text-secondary); font-size: 10px; font-family: ui-monospace, monospace; }
+.axis-line { stroke: var(--baseline); stroke-width: 1; }
+.seq-line { stroke: var(--seq-line); stroke-width: 1.5; }
+.anchor-line { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 3; }
+
+.gene-arrow { stroke-width: 0.75; cursor: pointer; }
+.gene-arrow.other { fill: var(--other-fill); stroke: var(--other-stroke); }
+.gene-arrow.rfe-other { fill: var(--rfe-other-fill); stroke: var(--rfe-other-stroke); }
+.gene-arrow.anchor { fill: var(--anchor-fill); stroke: var(--anchor-stroke); }
+.gene-arrow.pinned { stroke: #ffffff !important; stroke-width: 2px !important; }
+
+.marker-sq { stroke-width: 1.3; cursor: pointer; }
+.marker-sq.marker-visible { stroke: none; }
+.marker-sq.marker-diff { stroke-dasharray: none; }
+.marker-sq.marker-same-contig { stroke-dasharray: 2.5 1.5; }
+.marker-sq.marker-refound { stroke-dasharray: 0.5 1.5; stroke-linecap: round; }
+.marker-sq.pinned { stroke: #ffffff !important; stroke-width: 2.5px !important; }
+
+.marker-swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--other-fill); flex: none; }
+.marker-swatch.state-visible { border: none; }
+.marker-swatch.state-diff { border: 1.5px solid var(--text-secondary); }
+.marker-swatch.state-same { border: 1.5px dashed var(--text-secondary); }
+.marker-swatch.state-refound { border: 1.5px dotted var(--text-secondary); }
+
+.legend-item[data-cluster] { cursor: pointer; padding: 2px 6px; margin: -2px -6px; border-radius: 5px; }
+.legend-item[data-cluster]:hover { background: var(--section-bg); }
+.legend-item[data-cluster].pinned-legend { background: var(--section-bg); box-shadow: 0 0 0 1.5px var(--text-primary) inset; }
+
+#tooltip {
+  position: fixed; display: none; pointer-events: none; z-index: 50;
+  background: var(--text-primary); color: var(--page);
+  padding: 8px 11px; border-radius: 6px; font-size: 12px; line-height: 1.45;
+  max-width: 320px; box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+}
+#tooltip .tt-title { font-weight: 650; margin-bottom: 2px; }
+#tooltip .tt-row { color: var(--text-muted); }
+
+footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
+</style>
+
+<div class="wrap">
+  <div class="search-bar">
+    <input type="text" id="search-input" autocomplete="off"
+           placeholder="Search a gene name, Panaroo cluster, or annotation (e.g. espK, efa1, ubiquitin ligase)…">
+    <div class="search-results" id="search-results"></div>
+  </div>
+
+  <p class="status" id="status">
+    Type above to search the pangenome's 24,827 gene clusters, then pick one to build its
+    gene-order chart (anchor +/- a flanking window, sampled across up to 500 carrier genomes,
+    RFE-important flanking genes colored) &mdash; same chart style as the LEE/espK/sopA/derep_00002
+    charts, built on demand for any gene instead of one script per gene.
+  </p>
+
+  <div id="chart-area" style="display:none">
+    <div class="header-row">
+      <h1>anchor <span class="anchor-name" id="anchor-name"></span></h1>
+      <div style="display:flex; gap:16px; flex-wrap:wrap;">
+        <div class="window-control">
+          <label for="count-select">Genomes shown</label>
+          <select id="count-select"></select>
+        </div>
+        <div class="window-control">
+          <label for="window-select">Flanking window</label>
+          <select id="window-select"></select>
+        </div>
+      </div>
+    </div>
+    <p class="subtitle" id="subtitle"></p>
+    <p class="note" id="note"></p>
+
+    <div class="filter-bar" id="filter-bar">
+      <div class="filter-box">
+        <select class="filter-col-select"></select>
+        <select class="filter-val-select" disabled><option value="">(any)</option></select>
+        <span class="filter-box-stat"></span>
+      </div>
+      <div class="filter-box">
+        <select class="filter-col-select"></select>
+        <select class="filter-val-select" disabled><option value="">(any)</option></select>
+        <span class="filter-box-stat"></span>
+      </div>
+      <span class="filter-status" id="filter-status"></span>
+    </div>
+
+    <div class="legend" id="legend"></div>
+
+    <div class="chart-scroll">
+      <svg id="chart"></svg>
+    </div>
+
+    <footer id="footer"></footer>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<script>
+const S_COLORS = ["s1","s2","s3","s4","s5","s6","s7","s8"];
+const NS = "http://www.w3.org/2000/svg";
+
+const searchInput = document.getElementById("search-input");
+const searchResults = document.getElementById("search-results");
+const statusEl = document.getElementById("status");
+const chartArea = document.getElementById("chart-area");
+const svg = document.getElementById("chart");
+const tooltip = document.getElementById("tooltip");
+const windowSelect = document.getElementById("window-select");
+const countSelect = document.getElementById("count-select");
+const filterColSelects = document.querySelectorAll(".filter-col-select");
+const filterValSelects = document.querySelectorAll(".filter-val-select");
+const filterBoxStats = document.querySelectorAll(".filter-box-stat");
+const filterStatusEl = document.getElementById("filter-status");
+const FILTER_BLANK = "__pgv_blank__"; // sentinel for "column is empty", distinct from "" (= no filter set)
+
+// Cohort-wide (anchor-independent) metadata value totals -- fetched once,
+// reused for every chart build. Populates the filter boxes' "X% of <value>
+// genomes carry this gene" stat, which needs a genome-wide denominator
+// (every genome with that value, carrier or not) that no single chart
+// response has any reason to carry.
+let metadataTotals = null;
+let refreshFilterStats = () => {};
+fetch("/api/metadata_totals").then(r => r.json()).then(d => {
+  metadataTotals = d;
+  refreshFilterStats();
+}).catch(() => {});
+
+let currentAnchor = null;
+let pendingWindowBp = null;
+
+function el(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+function measureApprox(s) { return s.length * 6.5; }
+
+// ---- search ----
+let searchDebounce = null;
+searchInput.addEventListener("input", () => {
+  clearTimeout(searchDebounce);
+  const q = searchInput.value.trim();
+  if (!q) { searchResults.style.display = "none"; searchResults.innerHTML = ""; return; }
+  searchDebounce = setTimeout(() => runSearch(q), 250);
+});
+document.addEventListener("click", (ev) => {
+  if (!searchResults.contains(ev.target) && ev.target !== searchInput) {
+    searchResults.style.display = "none";
+  }
+});
+
+function runSearch(q) {
+  fetch("/api/search?q=" + encodeURIComponent(q))
+    .then(r => r.json())
+    .then(renderSearchResults)
+    .catch(err => {
+      searchResults.innerHTML = `<div class="search-empty">search failed: ${escapeHtml(String(err))}</div>`;
+      searchResults.style.display = "block";
+    });
+}
+
+function renderSearchResults(matches) {
+  if (!matches.length) {
+    searchResults.innerHTML = `<div class="search-empty">no matches</div>`;
+    searchResults.style.display = "block";
+    return;
+  }
+  searchResults.innerHTML = matches.map(m => {
+    const names = (m.non_unique_name || "").split(";").filter(Boolean).join(", ");
+    const ann = (m.annotation || "").split(";").filter(Boolean)[0] || "";
+    const rfeBadge = m.is_rfe
+      ? `<span class="rfe-badge">RFE${m.rfe_importance ? " " + Number(m.rfe_importance).toFixed(4) : ""}</span>`
+      : "";
+    return `<div class="search-result" data-cluster="${escapeHtml(m.cluster)}">
+      <div class="sr-top"><span class="sr-cluster">${escapeHtml(m.cluster)}</span>${rfeBadge}</div>
+      <div class="sr-sub">${escapeHtml(names ? names + " — " : "")}${escapeHtml(ann)} · ${m.carrier_count} genomes</div>
+    </div>`;
+  }).join("");
+  searchResults.style.display = "block";
+  searchResults.querySelectorAll(".search-result").forEach(node => {
+    node.addEventListener("click", () => selectCluster(node.dataset.cluster));
+  });
+}
+
+function selectCluster(cluster) {
+  searchResults.style.display = "none";
+  searchInput.value = cluster;
+  currentAnchor = cluster;
+  pendingWindowBp = null;
+  // A brand-new gene resets to a fresh view (window + filters); a count
+  // change on the *same* gene (countSelect.onchange) intentionally leaves
+  // both alone instead of routing through here.
+  filterColSelects.forEach(sel => { sel.value = ""; });
+  filterValSelects.forEach(sel => { sel.innerHTML = '<option value="">(any)</option>'; sel.disabled = true; });
+  filterBoxStats.forEach(el => { el.textContent = ""; });
+  buildChart(cluster, null);
+}
+
+// Changing the genome-count toggle re-fetches from the server (unlike the
+// window toggle, which just re-filters data already in the browser) --
+// which genomes get sampled determines the whole per-row payload, there's
+// no client-side superset to filter down from. `count` is null for "use the
+// server default", a number, or the string "all".
+function buildChart(cluster, count) {
+  chartArea.style.display = "none";
+  statusEl.style.display = "block";
+  statusEl.textContent = `Building chart for ${cluster}… (scans the full pangenome table plus one genome ` +
+    `annotation file per genome shown -- larger genome counts take longer, "all" on a common gene can take ` +
+    `a few minutes)`;
+  let url = "/api/chart?anchor=" + encodeURIComponent(cluster);
+  if (count) url += "&count=" + encodeURIComponent(count);
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        statusEl.textContent = "Error: " + data.error;
+        return;
+      }
+      statusEl.style.display = "none";
+      chartArea.style.display = "block";
+      renderChart(data);
+    })
+    .catch(err => { statusEl.textContent = "Build failed: " + String(err); });
+}
+
+// ---- chart rendering ----
+function renderChart(data) {
+  const rows = data.rows;
+  rows.forEach(r => { r._allGenes = r.genes; });
+
+  const anchorLabel = (data.anchor_non_unique_name || "").split(";").filter(Boolean)[0] || data.anchor_cluster;
+  document.getElementById("anchor-name").textContent = anchorLabel;
+  const nDropped = (data.n_dropped_refound || 0) + (data.n_dropped_other || 0);
+  let subtitle =
+    `Showing ${data.n_shown} of ${data.total_group_members} genomes carrying ${data.anchor_cluster}` +
+    (data.anchor_annotation ? ` (${data.anchor_annotation.split(";").filter(Boolean)[0]})` : "") +
+    `, stratified by top-3 serotype + Other.`;
+  if (nDropped > 0) {
+    subtitle += ` ${nDropped} sampled genome${nDropped === 1 ? "" : "s"} dropped` +
+      (data.n_dropped_refound > 0
+        ? ` (${data.n_dropped_refound} had only a Panaroo "refound" placeholder locus here, with no real Prokka gene call to draw)`
+        : "") + `.`;
+  }
+  if (data.carrier_loci_total > 0 && data.carrier_loci_refound / data.carrier_loci_total > 0.2) {
+    const pct = (100 * data.carrier_loci_refound / data.carrier_loci_total).toFixed(0);
+    subtitle += ` Note: ${pct}% of ALL genome-wide carriers of this gene (not just the ones shown) are ` +
+      `Panaroo "refound" calls rather than direct Prokka annotations — this gene may be systematically ` +
+      `hard for Prokka to call directly, so treat the low row count here as a data-quality signal, not ` +
+      `necessarily rarity.`;
+  }
+  document.getElementById("subtitle").textContent = subtitle;
+  document.getElementById("note").innerHTML =
+    `Pangenome cluster <code>${escapeHtml(data.anchor_cluster)}</code>, randomly sampled (seed 42), ` +
+    `anchored and strand-corrected so it always reads on the + strand. Colored genes are RFE-important ` +
+    `features found in the full +/-${(data.max_window_bp/1000).toFixed(0)}kb superset (window toggle above ` +
+    `only filters visibility, colors never change). Row labels show <code>mge_type</code> / source / ` +
+    `<code>[test score]</code> when the genome was in the H2.2_HC20 <code>human_all_gene</code> held-out ` +
+    `test split. Click any gene to highlight every other copy of its cluster; click empty space to clear. ` +
+    `The thin baseline line marks real contig sequence even where there's no gene &mdash; reaching the window ` +
+    `edge means sequence continues beyond what's shown, stopping short means a genuine contig end. The 8 ` +
+    `squares to the right of each row are a fixed-position column per colored gene, scannable straight down ` +
+    `for consistency: a plain filled square means that gene is drawn in the track to the left; a bordered ` +
+    `square means it's present but not shown here, for a specific reason (solid border = different contig, ` +
+    `dashed = same contig but further away, dotted = only a Panaroo "refound" placeholder with no resolved ` +
+    `position); no square at all means genuinely absent from that genome. Hover a square for details. ` +
+    `Clicking any gene &mdash; in the track, in the gutter, or in the legend above &mdash; highlights every ` +
+    `copy of its cluster everywhere on the chart.`;
+  document.getElementById("footer").textContent =
+    `${data.group_id} · coordinates relative to anchor, flipped so it always reads on the + strand · ` +
+    `only RFE-important genes are colored; everything else is neutral gray.`;
+
+  // ---- window dropdown, rebuilt per chart since options vary ----
+  windowSelect.innerHTML = "";
+  data.window_options_bp.forEach(bp => {
+    const opt = document.createElement("option");
+    opt.value = String(bp);
+    opt.textContent = `±${(bp/1000).toFixed(0)}kb`;
+    windowSelect.appendChild(opt);
+  });
+  // Carry the previously-selected window across a genome-count change
+  // (pendingWindowBp is set right before that refetch) instead of resetting
+  // to the server default every time.
+  const defaultWindow = (pendingWindowBp && data.window_options_bp.includes(pendingWindowBp))
+    ? pendingWindowBp
+    : (data.default_window_bp || data.window_options_bp[0]);
+  pendingWindowBp = null;
+  windowSelect.value = String(defaultWindow);
+  windowSelect.onchange = () => draw(Number(windowSelect.value));
+
+  // ---- genome-count dropdown: changing this re-fetches from the server ----
+  countSelect.innerHTML = "";
+  (data.count_options || []).forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = String(c);
+    opt.textContent = c === "all" ? `all (${data.total_group_members})` : String(c);
+    countSelect.appendChild(opt);
+  });
+  countSelect.value = String(data.requested_count != null ? data.requested_count : (data.default_count || 500));
+  countSelect.onchange = () => {
+    pendingWindowBp = Number(windowSelect.value);
+    buildChart(currentAnchor, countSelect.value);
+  };
+
+  // ---- metadata filter boxes: purely client-side, no re-fetch ----
+  // Values are drawn from the sampled genomes already in `rows` (i.e. the
+  // currently-fetched genome count), not the whole cohort -- filtering only
+  // narrows within what's already on screen, same as the count toggle
+  // fetches a wider sample rather than the filter itself pulling in new
+  // genomes. Column selection is preserved across a redraw (e.g. after a
+  // genome-count change); the value list is rebuilt each time since which
+  // values actually occur can change with a different sample.
+  function populateFilterColumnOptions() {
+    const cols = data.metadata_columns || [];
+    filterColSelects.forEach(sel => {
+      const prevVal = sel.value;
+      sel.innerHTML = '<option value="">(no filter)</option>' +
+        cols.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+      sel.value = cols.includes(prevVal) ? prevVal : "";
+    });
+  }
+
+  function populateFilterValueOptions(idx) {
+    const colSel = filterColSelects[idx], valSel = filterValSelects[idx];
+    const prevVal = valSel.value;
+    const col = colSel.value;
+    if (!col) {
+      valSel.innerHTML = '<option value="">(any)</option>';
+      valSel.disabled = true;
+      valSel.value = "";
+      return;
+    }
+    valSel.disabled = false;
+    const seen = new Set();
+    rows.forEach(r => {
+      const raw = (r.metadata && r.metadata[col] !== undefined) ? r.metadata[col] : "";
+      seen.add(raw === "" ? FILTER_BLANK : raw);
+    });
+    const entries = Array.from(seen).sort((a, b) => {
+      if (a === FILTER_BLANK) return 1;
+      if (b === FILTER_BLANK) return -1;
+      return a.localeCompare(b);
+    });
+    valSel.innerHTML = '<option value="">(any)</option>' + entries.map(k =>
+      `<option value="${escapeHtml(k)}">${escapeHtml(k === FILTER_BLANK ? "(blank)" : k)}</option>`
+    ).join("");
+    valSel.value = (entries.includes(prevVal) || prevVal === "") ? prevVal : "";
+  }
+
+  function passesFilters(r) {
+    for (let i = 0; i < filterColSelects.length; i++) {
+      const col = filterColSelects[i].value;
+      const filterVal = filterValSelects[i].value;
+      if (!col || !filterVal) continue;
+      const raw = (r.metadata && r.metadata[col] !== undefined) ? r.metadata[col] : "";
+      const key = raw === "" ? FILTER_BLANK : raw;
+      if (key !== filterVal) return false;
+    }
+    return true;
+  }
+
+  // Cohort-wide "what % of <value> genomes carry this gene" stat per filter
+  // box -- independent of the genome-count toggle and of the *other*
+  // filter box (single-column stat, not the AND-combined view). Numerator
+  // (data.carrier_value_counts) is this anchor's full genome-wide carrier
+  // set; denominator (metadataTotals, fetched once) is every genome with
+  // that value regardless of carriage -- both already keyed by the same
+  // column/value strings, no re-fetch needed to update this on a filter
+  // change.
+  function updateFilterStat(idx) {
+    const statEl = filterBoxStats[idx];
+    const col = filterColSelects[idx].value;
+    const val = filterValSelects[idx].value;
+    if (!col || !val || !metadataTotals) { statEl.textContent = ""; return; }
+    const rawVal = val === FILTER_BLANK ? "" : val;
+    const nCarriers = (data.carrier_value_counts[col] || {})[rawVal] || 0;
+    const nTotal = (metadataTotals.totals[col] || {})[rawVal] || 0;
+    if (nTotal === 0) { statEl.textContent = ""; return; }
+    const pct = (100 * nCarriers / nTotal).toFixed(1);
+    statEl.textContent = `${nCarriers}/${nTotal} genomes with this value carry the gene (${pct}%, cohort-wide)`;
+  }
+  refreshFilterStats = () => { filterBoxStats.forEach((_, i) => updateFilterStat(i)); };
+
+  populateFilterColumnOptions();
+  filterColSelects.forEach((sel, i) => {
+    populateFilterValueOptions(i);
+    updateFilterStat(i);
+    sel.onchange = () => { populateFilterValueOptions(i); updateFilterStat(i); draw(Number(windowSelect.value)); };
+  });
+  filterValSelects.forEach((sel, i) => {
+    sel.onchange = () => { updateFilterStat(i); draw(Number(windowSelect.value)); };
+  });
+
+  // ---- legend (fixed regardless of window) ----
+  const clusterColor = {};
+  data.top8_rfe_clusters.forEach((c, i) => { clusterColor[c] = `var(--${S_COLORS[i]})`; });
+
+  const legend = document.getElementById("legend");
+  const items = [];
+  data.top8_rfe_clusters.forEach(c => {
+    const label = (data.cluster_labels[c] || c).split(";")[0];
+    items.push(`<div class="legend-item" data-cluster="${escapeHtml(c)}"><div class="swatch" style="background:${clusterColor[c]}"></div>${escapeHtml(c)} — ${escapeHtml(label.slice(0,38))}</div>`);
+  });
+  items.push(`<div class="legend-item"><div class="swatch" style="background:var(--rfe-other-fill)"></div>other RFE feature</div>`);
+  items.push(`<div class="legend-item"><div class="swatch" style="background:var(--other-fill)"></div>not an RFE feature</div>`);
+  items.push(`<div class="legend-item"><div class="swatch anchor-swatch" style="background:var(--anchor-fill)"></div>anchor gene (${escapeHtml(anchorLabel)})</div>`);
+  items.push(`<div class="legend-item"><div class="marker-swatch state-visible"></div>gutter box: drawn in the track</div>`);
+  items.push(`<div class="legend-item"><div class="marker-swatch state-diff"></div>gutter box: present, different contig</div>`);
+  items.push(`<div class="legend-item"><div class="marker-swatch state-same"></div>gutter box: present, same contig, outside window</div>`);
+  items.push(`<div class="legend-item"><div class="marker-swatch state-refound"></div>gutter box: present via Panaroo "refound" only</div>`);
+  legend.innerHTML = items.join("");
+  legend.querySelectorAll("[data-cluster]").forEach(node => {
+    node.addEventListener("click", () => {
+      const cl = node.dataset.cluster;
+      applyPin(pinnedCluster === cl ? null : cl);
+    });
+  });
+
+  function showTooltip(ev, g) {
+    const kind = g.is_anchor ? "anchor gene" : g.is_rfe ? "RFE feature" : "not RFE-flagged";
+    tooltip.innerHTML =
+      `<div class="tt-title">${escapeHtml(g.product)}</div>` +
+      `<div class="tt-row">${escapeHtml(g.cluster)} · ${kind}${g.rfe_importance ? " · importance " + Number(g.rfe_importance).toFixed(4) : ""}</div>` +
+      `<div class="tt-row">strand ${g.strand} · ${g.start} to ${g.end} (rel. to anchor)</div>`;
+    tooltip.style.display = "block";
+    positionTooltip(ev);
+  }
+  function positionTooltip(ev) {
+    tooltip.style.left = Math.min(ev.clientX + 14, window.innerWidth - 340) + "px";
+    tooltip.style.top = Math.min(ev.clientY + 14, window.innerHeight - 90) + "px";
+  }
+  function showMarkerTooltip(ev, cluster, state) {
+    const label = (data.cluster_labels[cluster] || cluster).split(";")[0];
+    const stateText = state === "visible"
+      ? "drawn in the main gene track to the left"
+      : state === "different_contig"
+      ? "present, but on a different contig than the anchor in this genome"
+      : state === "same_contig_outside_window"
+      ? "present, same contig as the anchor, just outside the full +/-40kb window"
+      : "present only via a Panaroo \"refound\" placeholder — no Prokka GFF entry to resolve a position from";
+    tooltip.innerHTML =
+      `<div class="tt-title">${escapeHtml(cluster)}</div>` +
+      `<div class="tt-row">${escapeHtml(label)}</div>` +
+      `<div class="tt-row">${escapeHtml(stateText)}</div>`;
+    tooltip.style.display = "block";
+    positionTooltip(ev);
+  }
+
+  let pinnedCluster = null;
+  function applyPin(cluster) {
+    pinnedCluster = cluster;
+    svg.querySelectorAll(".gene-arrow, .marker-sq").forEach(e => {
+      e.classList.toggle("pinned", !!cluster && e.dataset.cluster === cluster);
+    });
+    legend.querySelectorAll("[data-cluster]").forEach(e => {
+      e.classList.toggle("pinned-legend", !!cluster && e.dataset.cluster === cluster);
+    });
+  }
+  svg.onclick = () => applyPin(null);
+
+  function draw(windowBp) {
+    svg.innerHTML = "";
+    pinnedCluster = null;
+
+    rows.forEach(r => {
+      r.genes = r._allGenes.filter(g => g.end >= -windowBp && g.start <= windowBp);
+    });
+
+    // Filter boxes narrow which of the already-fetched `rows` actually get
+    // laid out/drawn -- purely a display-time restriction, no re-fetch.
+    const shown = rows.filter(passesFilters);
+    filterStatusEl.textContent = (shown.length === rows.length)
+      ? ""
+      : `${shown.length} of ${rows.length} sampled genomes match the filter${filterColSelects.length > 1 ? "s" : ""}`;
+
+    const rowH = 20, rowGap = 2, sectionGapTop = 30, labelW = 320;
+    const markerSize = 9, markerGap = 3, markerLeftPad = 14;
+    const gutterW = markerLeftPad + 8 * (markerSize + markerGap);
+    let minX = Infinity, maxX = -Infinity;
+    shown.forEach(r => r.genes.forEach(g => { minX = Math.min(minX, g.start); maxX = Math.max(maxX, g.end); }));
+    if (!isFinite(minX)) { minX = -windowBp; maxX = windowBp; }
+    const pad = 800;
+    minX -= pad; maxX += pad;
+    const plotW = 1280;
+    const scaleX = x => (x - minX) / (maxX - minX) * plotW;
+
+    const byBucket = {};
+    data.sero_buckets.forEach(b => byBucket[b] = []);
+    shown.forEach(r => { if (!byBucket[r.sero_bucket]) byBucket[r.sero_bucket] = []; byBucket[r.sero_bucket].push(r); });
+
+    let y = 10;
+    const sections = [];
+    data.sero_buckets.forEach(b => {
+      const bucketRows = byBucket[b] || [];
+      if (!bucketRows.length) return;
+      const sectionTop = y;
+      y += sectionGapTop;
+      bucketRows.forEach(r => { r._y = y; y += rowH + rowGap; });
+      sections.push({ label: b, count: bucketRows.length, top: sectionTop, rowsEnd: y - rowGap });
+    });
+    const totalH = y + 20;
+    const totalW = labelW + plotW + gutterW + 20;
+
+    svg.setAttribute("width", totalW);
+    svg.setAttribute("height", totalH);
+    svg.setAttribute("viewBox", `0 0 ${totalW} ${totalH}`);
+
+    const plotX0 = labelW;
+
+    sections.forEach(s => {
+      svg.appendChild(el("rect", {
+        class: "section-bg", x: 0, y: s.top, width: totalW, height: s.rowsEnd - s.top + 8,
+      }));
+      const t = el("text", { class: "section-label", x: 10, y: s.top + 14 });
+      t.textContent = `${s.label}`;
+      svg.appendChild(t);
+      const tc = el("text", { class: "section-count", x: 10 + measureApprox(s.label) + 6, y: s.top + 14 });
+      tc.textContent = `(${s.count} shown)`;
+      svg.appendChild(tc);
+    });
+
+    svg.appendChild(el("line", {
+      class: "anchor-line", x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4, y2: totalH - 16,
+    }));
+
+    shown.forEach(r => {
+      const rowY = r._y;
+      const label = el("text", { class: "row-label", x: 10, y: rowY + rowH / 2 + 3 });
+      const testScoreSuffix = (r.test_score != null) ? `  [test score ${r.test_score.toFixed(3)}]` : "";
+      label.textContent = `${r.genome_id}  ${r.mge_type}  ${r.source_type}${testScoreSuffix}`;
+      svg.appendChild(label);
+
+      if (r.contig_rel_start != null) {
+        const segStart = Math.max(r.contig_rel_start, -windowBp);
+        const segEnd = Math.min(r.contig_rel_end, windowBp);
+        if (segEnd > segStart) {
+          svg.appendChild(el("line", {
+            class: "seq-line",
+            x1: plotX0 + scaleX(segStart), x2: plotX0 + scaleX(segEnd),
+            y1: rowY + rowH / 2, y2: rowY + rowH / 2,
+          }));
+        }
+      }
+
+      r.genes.forEach(g => {
+        const x1 = plotX0 + scaleX(g.start), x2 = plotX0 + scaleX(g.end);
+        const w = Math.max(1.4, x2 - x1);
+        const h = rowH * 0.62;
+        const yTop = rowY + (rowH - h) / 2;
+        const headLen = Math.min(w * 0.35, 6);
+
+        let cls = "other", fill = null;
+        if (g.is_anchor) { cls = "anchor"; }
+        else if (g.cluster in clusterColor) { cls = ""; fill = clusterColor[g.cluster]; }
+        else if (g.is_rfe) { cls = "rfe-other"; }
+
+        const points = g.strand === "+"
+          ? `${x1},${yTop} ${x1 + w - headLen},${yTop} ${x1 + w},${yTop + h/2} ${x1 + w - headLen},${yTop + h} ${x1},${yTop + h}`
+          : `${x1 + headLen},${yTop} ${x1 + w},${yTop} ${x1 + w},${yTop + h} ${x1 + headLen},${yTop + h} ${x1},${yTop + h/2}`;
+
+        const poly = el("polygon", { class: `gene-arrow ${cls}`, points });
+        if (fill) poly.setAttribute("style", `fill:${fill};stroke:${fill}`);
+        poly.dataset.cluster = g.cluster;
+        poly.addEventListener("mouseenter", (ev) => showTooltip(ev, g));
+        poly.addEventListener("mousemove", (ev) => positionTooltip(ev));
+        poly.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+        poly.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          if (g.cluster === "NA") return;
+          applyPin(pinnedCluster === g.cluster ? null : g.cluster);
+        });
+        svg.appendChild(poly);
+      });
+
+      // ---- per-gene gutter status boxes: one fixed column per top-8 gene ----
+      const markerMap = {};
+      (r.top8_markers || []).forEach(m => { markerMap[m.cluster] = m.state; });
+      const gutterX0 = plotX0 + plotW + markerLeftPad;
+      data.top8_rfe_clusters.forEach((cl, i) => {
+        const state = markerMap[cl];
+        if (!state) return;
+        const stateClass = state === "visible" ? "marker-visible"
+          : state === "different_contig" ? "marker-diff"
+          : state === "same_contig_outside_window" ? "marker-same-contig"
+          : "marker-refound";
+        const mx = gutterX0 + i * (markerSize + markerGap);
+        const my = rowY + (rowH - markerSize) / 2;
+        const rect = el("rect", {
+          class: `marker-sq ${stateClass}`,
+          x: mx, y: my, width: markerSize, height: markerSize, rx: 2,
+        });
+        const strokeColor = state === "visible" ? "none" : "var(--text-primary)";
+        rect.setAttribute("style", `fill:${clusterColor[cl] || "var(--rfe-other-fill)"};stroke:${strokeColor}`);
+        rect.dataset.cluster = cl;
+        rect.addEventListener("mouseenter", (ev) => showMarkerTooltip(ev, cl, state));
+        rect.addEventListener("mousemove", (ev) => positionTooltip(ev));
+        rect.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+        rect.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          applyPin(pinnedCluster === cl ? null : cl);
+        });
+        svg.appendChild(rect);
+      });
+    });
+  }
+
+  draw(defaultWindow);
+}
+</script>

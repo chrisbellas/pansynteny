@@ -1,0 +1,42 @@
+# Example config for pangenome_viewer.py / pgv_lookup.py.
+#
+# Copy this file to "pangenome_viewer.config" (no ".example") in the same
+# directory as the scripts and fill in absolute paths for your dataset --
+# it's picked up automatically, no --config flag needed. Any value can
+# instead be passed as a CLI flag (e.g. --panaroo-csv ...), which overrides
+# whatever is set here. Blank/missing values are treated as "not set".
+#
+# Only panaroo_csv and prokka_dir are required. Everything else is
+# optional -- see the module docstring in pangenome_viewer.py for exactly
+# which feature turns off when a given key is left blank.
+
+# --- required ---
+panaroo_csv =
+prokka_dir =
+
+# --- optional: genome metadata (serotype/host grouping, row labels, and
+# the generic column/value filter boxes) ---
+metadata_tsv =
+metadata_join_col =
+metadata_o_antigen_col =
+metadata_h_antigen_col =
+metadata_source_col =
+
+# --- optional: RFE feature-importance coloring (expects a tab-delimited
+# file with "feature" and "importance" columns) ---
+rfe_features_txt =
+
+# --- optional: MGE-type labels/copy-selection preference (expects a
+# tab-delimited file with pangenome_gene_cluster/genome_id/locus_tag/
+# mge_type columns) ---
+mge_genes_tsv =
+
+# --- optional: held-out test-split score annotation on each row ---
+test_predictions_csv =
+test_predictions_genome_col =
+test_predictions_score_col =
+
+# --- optional: cosmetic only -- comma-separated suffixes to strip from a
+# Panaroo/Prokka genome-column "stem" for a shorter display genome_id,
+# e.g. ".result,.scaffold" ---
+strip_genome_suffixes =
