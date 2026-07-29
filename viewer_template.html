@@ -485,19 +485,29 @@ function renderChart(data) {
       return;
     }
     valSel.disabled = false;
-    const seen = new Set();
+    // Counts here are against the currently-loaded sample (`rows`, e.g. 500
+    // genomes), not the full cohort -- shown so you can see before picking a
+    // value whether it's well-represented in what's already loaded. This is
+    // a different number than the cohort-wide stat that appears after
+    // selecting (see updateFilterStat) -- that one uses the gene's full
+    // genome-wide carrier count as the denominator, this one uses the
+    // sample size.
+    const counts = new Map();
     rows.forEach(r => {
       const raw = (r.metadata && r.metadata[col] !== undefined) ? r.metadata[col] : "";
-      seen.add(raw === "" ? FILTER_BLANK : raw);
+      const key = raw === "" ? FILTER_BLANK : raw;
+      counts.set(key, (counts.get(key) || 0) + 1);
     });
-    const entries = Array.from(seen).sort((a, b) => {
+    const entries = Array.from(counts.keys()).sort((a, b) => {
       if (a === FILTER_BLANK) return 1;
       if (b === FILTER_BLANK) return -1;
       return a.localeCompare(b);
     });
-    valSel.innerHTML = '<option value="">(any)</option>' + entries.map(k =>
-      `<option value="${escapeHtml(k)}">${escapeHtml(k === FILTER_BLANK ? "(blank)" : k)}</option>`
-    ).join("");
+    const total = rows.length;
+    valSel.innerHTML = '<option value="">(any)</option>' + entries.map(k => {
+      const label = k === FILTER_BLANK ? "(blank)" : k;
+      return `<option value="${escapeHtml(k)}">${escapeHtml(label)} (${counts.get(k)}/${total})</option>`;
+    }).join("");
     valSel.value = (entries.includes(prevVal) || prevVal === "") ? prevVal : "";
   }
 
