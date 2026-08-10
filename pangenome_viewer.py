@@ -88,7 +88,8 @@ STRIP_GENOME_SUFFIXES = ()
 
 DEFAULT_COUNT = 500
 COUNT_OPTIONS = [100, 200, 500, 1000, 2000, "all"]
-TOP_N_COLORED = 8
+TOP_N_COLORED = 12  # RFE features tracked + individually colored in the
+                     # strain-comparison column
 RANDOM_SEED = 42
 WINDOW_OPTIONS_BP = [5000, 10000, 20000, 30000, 40000]
 BUILD_WINDOW = WINDOW_OPTIONS_BP[-1]  # always build the widest superset;
@@ -674,17 +675,17 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT):
     bucket_rank = {b: i for i, b in enumerate(buckets_order)}
     rows_out.sort(key=lambda r: (bucket_rank.get(r["sero_bucket"], 99), r["genome_id"]))
 
-    top8_rfe_clusters = [c for c, _ in rfe_cluster_counts.most_common(TOP_N_COLORED)]
+    top_rfe_clusters = [c for c, _ in rfe_cluster_counts.most_common(TOP_N_COLORED)]
     cluster_labels = {}
     for row in rows_out:
         for gobj in row["genes"]:
-            if gobj["cluster"] in top8_rfe_clusters and gobj["cluster"] not in cluster_labels:
+            if gobj["cluster"] in top_rfe_clusters and gobj["cluster"] not in cluster_labels:
                 cluster_labels[gobj["cluster"]] = gobj["product"]
 
-    # Per-row status marker for each of the top-8 colored genes, whether or
-    # not it's drawn in this row's window -- lets the client render one
-    # gutter column per gene so the whole chart is scannable for presence
-    # even when synteny puts it out of frame.
+    # Per-row status marker for each of the tracked genes, whether or not
+    # it's drawn in this row's window -- lets the client render one
+    # strain-comparison column per gene so the whole chart is scannable for
+    # presence even when synteny puts it out of frame.
     cluster_to_loci_cache = {}
 
     def cluster_to_loci(g):
@@ -702,7 +703,7 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT):
         visible = {gobj["cluster"] for gobj in row["genes"]}
         genes_g = gff_genes.get(g, {})
         markers = []
-        for cl in top8_rfe_clusters:
+        for cl in top_rfe_clusters:
             if cl == anchor_cluster:
                 continue
             if cl in visible:
@@ -719,7 +720,7 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT):
             else:
                 state = "different_contig"
             markers.append({"cluster": cl, "state": state})
-        row["top8_markers"] = markers
+        row["gutter_markers"] = markers
 
     print(f"[build] {anchor_cluster}: {len(rows_out)}/{len(sample_genome_ids)} sampled "
           f"genomes shown; dropped {n_dropped_refound} (refound placeholder, no GFF "
@@ -741,7 +742,7 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT):
         "carrier_loci_total": carrier_loci_total,
         "carrier_loci_refound": carrier_loci_refound,
         "sero_buckets": buckets_order,
-        "top8_rfe_clusters": top8_rfe_clusters,
+        "top_rfe_clusters": top_rfe_clusters,
         "cluster_labels": cluster_labels,
         "max_window_bp": BUILD_WINDOW,
         "default_window_bp": DEFAULT_WINDOW,
