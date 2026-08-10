@@ -246,6 +246,10 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <label for="window-select">Flanking window</label>
           <select id="window-select"></select>
         </div>
+        <div class="window-control">
+          <label for="palette-select">Palette</label>
+          <select id="palette-select"></select>
+        </div>
         <div class="export-control">
           <button type="button" class="export-btn" id="export-selected-btn" disabled>Export selected (0)</button>
           <button type="button" class="export-btn" id="export-all-btn">Export all shown</button>
@@ -300,6 +304,7 @@ const countSelect = document.getElementById("count-select");
 const exportSelectedBtn = document.getElementById("export-selected-btn");
 const exportAllBtn = document.getElementById("export-all-btn");
 const exportClearEl = document.getElementById("export-clear");
+const paletteSelect = document.getElementById("palette-select");
 const filterColSelects = document.querySelectorAll(".filter-col-select");
 const filterValSelects = document.querySelectorAll(".filter-val-select");
 const filterBoxStats = document.querySelectorAll(".filter-box-stat");
@@ -317,6 +322,43 @@ fetch("/api/metadata_totals").then(r => r.json()).then(d => {
   metadataTotals = d;
   refreshFilterStats();
 }).catch(() => {});
+
+// ---- color palette selector -------------------------------------------------
+// Swaps the 12 categorical hues (--s1..--s12) that color genes + gutter squares.
+// "Default" = the built-in theme-aware values from the stylesheet; the named
+// palettes are popular categorical sets applied as one fixed hex set across both
+// themes (non-colorblind-optimized, by request). Overriding the CSS vars recolors
+// the live chart instantly (colors are referenced as var(), no redraw needed) and
+// the SVG export picks up the choice for free (it bakes whatever the vars resolve
+// to). Persisted in localStorage so it survives reloads and new chart builds.
+const PALETTES = {
+  "Default": null,
+  "Tableau": ["#4e79a7","#f28e2b","#e15759","#76b7b2","#59a14f","#edc948","#b07aa1","#ff9da7","#9c755f","#86bcb6","#d37295","#b6992d"],
+  "D3 Category": ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#17becf","#bcbd22","#aec7e8","#98df8a","#ff9896"],
+  "Vivid": ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#f032e6","#42d4f4","#469990","#9a6324","#808000","#bfef45","#fabed4"],
+  "Set3 (soft)": ["#8dd3c7","#fdb462","#bebada","#fb8072","#80b1d3","#b3de69","#fccde5","#bc80bd","#ccebc5","#d3c14a","#e78ac3","#a6d854"],
+};
+function applyPalette(name) {
+  const cols = PALETTES[name];
+  const root = document.documentElement;
+  for (let i = 1; i <= 12; i++) {
+    if (cols) root.style.setProperty(`--s${i}`, cols[i - 1]);
+    else root.style.removeProperty(`--s${i}`);
+  }
+  try { localStorage.setItem("pgv_palette", name); } catch (e) {}
+}
+(() => {
+  Object.keys(PALETTES).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name; opt.textContent = name;
+    paletteSelect.appendChild(opt);
+  });
+  let saved = "Default";
+  try { const s = localStorage.getItem("pgv_palette"); if (s && s in PALETTES) saved = s; } catch (e) {}
+  paletteSelect.value = saved;
+  applyPalette(saved);
+  paletteSelect.onchange = () => applyPalette(paletteSelect.value);
+})();
 
 let currentAnchor = null;
 let pendingWindowBp = null;
