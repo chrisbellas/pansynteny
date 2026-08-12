@@ -18,6 +18,7 @@
   --s5: #1baf7a; --s6: #eb6834; --s7: #4a3aa7; --s8: #e34948;
   --s9: #b8960b; --s10: #0e93a3; --s11: #a13391; --s12: #8a5a2b;
   --s13: #7cb342; --s14: #5c6bc0; --s15: #d81b60; --s16: #607d8b;
+  --marker-same-border: #1565c0; --marker-refound-border: #c62828;
   --rfe-other-fill: #fab219;
   --rfe-other-stroke: #0b0b0b;
   --section-bg: #f2f1ec;
@@ -35,6 +36,7 @@
     --s5: #199e70; --s6: #d95926; --s7: #9085e9; --s8: #e66767;
     --s9: #d4af1f; --s10: #22b8cc; --s11: #c752b3; --s12: #b9814f;
     --s13: #9ccc65; --s14: #7986cb; --s15: #ec407a; --s16: #90a4ae;
+    --marker-same-border: #7cc0ff; --marker-refound-border: #ff8a80;
     --rfe-other-fill: #d99a1e;
     --rfe-other-stroke: #ffffff;
     --section-bg: #202020;
@@ -52,6 +54,7 @@
   --s5: #199e70; --s6: #d95926; --s7: #9085e9; --s8: #e66767;
   --s9: #d4af1f; --s10: #22b8cc; --s11: #c752b3; --s12: #b9814f;
   --s13: #9ccc65; --s14: #7986cb; --s15: #ec407a; --s16: #90a4ae;
+  --marker-same-border: #7cc0ff; --marker-refound-border: #ff8a80;
   --rfe-other-fill: #d99a1e;
   --rfe-other-stroke: #ffffff;
   --section-bg: #202020;
@@ -68,6 +71,7 @@
   --s5: #1baf7a; --s6: #eb6834; --s7: #4a3aa7; --s8: #e34948;
   --s9: #b8960b; --s10: #0e93a3; --s11: #a13391; --s12: #8a5a2b;
   --s13: #7cb342; --s14: #5c6bc0; --s15: #d81b60; --s16: #607d8b;
+  --marker-same-border: #1565c0; --marker-refound-border: #c62828;
   --rfe-other-fill: #fab219; --rfe-other-stroke: #0b0b0b;
   --section-bg: #f2f1ec;
   --seq-line: rgba(11,11,11,0.28);
@@ -126,12 +130,13 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
 .status { color: var(--text-secondary); font-size: 13.5px; margin: 0 0 24px; }
 
 .legend {
-  display: flex; flex-wrap: wrap; gap: 14px 22px; align-items: center;
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px 20px;
+  align-items: start;
   padding: 12px 16px; background: var(--surface-1); border: 1px solid var(--border);
-  border-radius: 8px; margin-bottom: 18px; font-size: 12px; color: var(--text-secondary);
+  border-radius: 8px; margin-bottom: 18px; font-size: 12px; line-height: 1.3; color: var(--text-secondary);
 }
-.legend-item { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
-.swatch { width: 13px; height: 9px; border-radius: 2px; flex: none; }
+.legend-item { display: flex; align-items: flex-start; gap: 6px; }
+.swatch { width: 13px; height: 9px; border-radius: 2px; flex: none; margin-top: 3px; }
 .swatch.anchor-swatch { position: relative; }
 .swatch.anchor-swatch::after {
   content: ""; position: absolute; inset: -2px; border: 1.5px solid var(--anchor-stroke); border-radius: 3px;
@@ -194,8 +199,8 @@ svg { display: block; }
 .marker-sq { stroke-width: 1.3; cursor: pointer; }
 .marker-sq.marker-visible { stroke: none; }
 .marker-sq.marker-diff { stroke-dasharray: none; }
-.marker-sq.marker-same-contig { stroke-dasharray: 2.5 1.5; }
-.marker-sq.marker-refound { stroke-dasharray: 0.5 1.5; stroke-linecap: round; }
+.marker-sq.marker-same-contig { stroke-dasharray: none; stroke-width: 1.8; }
+.marker-sq.marker-refound { stroke-dasharray: none; stroke-width: 1.8; }
 .marker-sq.pinned { stroke: #ffffff !important; stroke-width: 2.5px !important; }
 
 .row-check { fill: transparent; stroke: var(--other-stroke); stroke-width: 1.2; cursor: pointer; }
@@ -203,11 +208,11 @@ svg { display: block; }
 .row-check.checked { fill: var(--accent); stroke: var(--accent); }
 .row-check-tick { stroke: var(--surface-1); stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
 
-.marker-swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--other-fill); flex: none; }
+.marker-swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--other-fill); flex: none; margin-top: 2px; }
 .marker-swatch.state-visible { border: none; }
 .marker-swatch.state-diff { border: 1.5px solid var(--text-secondary); }
-.marker-swatch.state-same { border: 1.5px dashed var(--text-secondary); }
-.marker-swatch.state-refound { border: 1.5px dotted var(--text-secondary); }
+.marker-swatch.state-same { border: 1.8px solid var(--marker-same-border); }
+.marker-swatch.state-refound { border: 1.8px solid var(--marker-refound-border); }
 
 .legend-item[data-cluster] { cursor: pointer; padding: 2px 6px; margin: -2px -6px; border-radius: 5px; }
 .legend-item[data-cluster]:hover { background: var(--section-bg); }
@@ -511,13 +516,13 @@ function renderChart(data) {
     `test split. Click any gene to highlight every other copy of its cluster; click empty space to clear. ` +
     `The thin baseline line marks real contig sequence even where there's no gene &mdash; reaching the window ` +
     `edge means sequence continues beyond what's shown, stopping short means a genuine contig end. The ` +
-    `<b>strain comparison</b> column to the right of each row has ${nGutter} fixed-position squares, one per ` +
+    `<b>Quick comparison</b> column to the right of each row has ${nGutter} fixed-position squares, one per ` +
     `tracked RFE gene, individually colored to match the track, scannable straight down for consistency: ` +
     `a plain filled square means that gene is drawn in the track to the left; a bordered square means it's ` +
     `present but not shown here, for a specific ` +
-    `reason (solid border = different contig, dashed = same contig but further away, dotted = only a Panaroo ` +
+    `reason (neutral border = different contig, blue border = same contig but further away, red border = only a Panaroo ` +
     `"refound" placeholder with no resolved position); no square at all means genuinely absent from that ` +
-    `genome. Hover a square for details. Clicking any gene &mdash; in the track, in the strain comparison ` +
+    `genome. Hover a square for details. Clicking any gene &mdash; in the track, in the Quick comparison ` +
     `column, or in the legend above &mdash; highlights every copy of its cluster everywhere on the chart.`;
   document.getElementById("footer").textContent =
     `${data.group_id} · coordinates relative to anchor, flipped so it always reads on the + strand · ` +
@@ -677,12 +682,10 @@ function renderChart(data) {
     items.push(`<div class="legend-item" data-cluster="${escapeHtml(c)}"><div class="swatch" style="background:${clusterColor[c]}"></div>${escapeHtml(c)} — ${escapeHtml(label.slice(0,38))}</div>`);
   });
   items.push(`<div class="legend-item"><div class="swatch" style="background:var(--rfe-other-fill)"></div>other RFE feature</div>`);
-  items.push(`<div class="legend-item"><div class="swatch" style="background:var(--other-fill)"></div>not an RFE feature</div>`);
   items.push(`<div class="legend-item"><div class="swatch anchor-swatch" style="background:var(--anchor-fill)"></div>anchor gene (${escapeHtml(anchorLabel)})</div>`);
-  items.push(`<div class="legend-item"><div class="marker-swatch state-visible"></div>strain comparison: drawn in the track</div>`);
-  items.push(`<div class="legend-item"><div class="marker-swatch state-diff"></div>strain comparison: present, different contig</div>`);
-  items.push(`<div class="legend-item"><div class="marker-swatch state-same"></div>strain comparison: present, same contig, outside window</div>`);
-  items.push(`<div class="legend-item"><div class="marker-swatch state-refound"></div>strain comparison: present via Panaroo "refound" only</div>`);
+  items.push(`<div class="legend-item"><div class="marker-swatch state-diff"></div>Quick comparison: present, different contig</div>`);
+  items.push(`<div class="legend-item"><div class="marker-swatch state-same"></div>Quick comparison: present, same contig, outside window</div>`);
+  items.push(`<div class="legend-item"><div class="marker-swatch state-refound"></div>Quick comparison: present via Panaroo "refound" only</div>`);
   legend.innerHTML = items.join("");
   legend.querySelectorAll("[data-cluster]").forEach(node => {
     node.addEventListener("click", () => {
@@ -914,7 +917,10 @@ function renderChart(data) {
         const mx = gutterX0 + i * (markerSize + markerGap);
         const my = rowY + (rowH - markerSize) / 2;
         const markerFill = clusterColor[cl] || "var(--rfe-other-fill)";
-        const strokeColor = state === "visible" ? "none" : "var(--text-primary)";
+        const strokeColor = state === "visible" ? "none"
+          : state === "same_contig_outside_window" ? "var(--marker-same-border)"
+          : state === "refound_only" ? "var(--marker-refound-border)"
+          : "var(--text-primary)";
         let rect;
         if (live) {
           const stateClass = state === "visible" ? "marker-visible"
@@ -932,10 +938,9 @@ function renderChart(data) {
             applyPin(pinnedCluster === cl ? null : cl);
           });
         } else {
-          const attrs = { x: mx, y: my, width: markerSize, height: markerSize, rx: 2, fill: resolve(markerFill), "stroke-width": 1.3 };
+          const thickBorder = state === "same_contig_outside_window" || state === "refound_only";
+          const attrs = { x: mx, y: my, width: markerSize, height: markerSize, rx: 2, fill: resolve(markerFill), "stroke-width": thickBorder ? 1.8 : 1.3 };
           attrs.stroke = strokeColor === "none" ? "none" : resolve(strokeColor);
-          if (state === "same_contig_outside_window") attrs["stroke-dasharray"] = "2.5 1.5";
-          else if (state === "refound_only") { attrs["stroke-dasharray"] = "0.5 1.5"; attrs["stroke-linecap"] = "round"; }
           rect = el("rect", attrs);
         }
         target.appendChild(rect);
@@ -968,6 +973,7 @@ function renderChart(data) {
     "--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8","--s9","--s10","--s11","--s12",
     "--s13","--s14","--s15","--s16",
     "--other-fill","--other-stroke","--rfe-other-fill","--rfe-other-stroke",
+    "--marker-same-border","--marker-refound-border",
     "--anchor-fill","--anchor-stroke","--text-primary","--text-secondary","--text-muted",
     "--section-bg","--seq-line","--surface-1",
   ];
@@ -1005,24 +1011,27 @@ function renderChart(data) {
 
   function buildLegendGroup(resolve, maxWidth) {
     const g = el("g", {});
-    const rowH = 18, swW = 13, swH = 9, gapSW = 6, gapItem = 22, padX = 0, padY = 0;
-    let cx = padX, cy = padY;
+    // Fixed 4-column grid so items line up in neat columns (mirrors the live
+    // HTML legend); placement is row-major by call order.
+    const nCols = 4, rowH = 18, swW = 13, swH = 9, gapSW = 6, padX = 0, padY = 0;
+    const colW = (maxWidth - padX * 2) / nCols;
+    let idx = 0;
     const textFill = resolve("var(--text-secondary)");
     const place = (drawSwatch, text, swWidth) => {
-      const itemW = swWidth + gapSW + measureApprox(text);
-      if (cx > padX && cx + itemW > maxWidth - padX) { cx = padX; cy += rowH; }
+      const col = idx % nCols, row = Math.floor(idx / nCols);
+      const cx = padX + col * colW, cy = padY + row * rowH;
       drawSwatch(cx, cy);
       const t = el("text", { x: cx + swWidth + gapSW, y: cy + 9, fill: textFill, "font-size": 12, "font-family": "sans-serif" });
       t.textContent = text;
       g.appendChild(t);
-      cx += itemW + gapItem;
+      idx++;
     };
     data.top_rfe_clusters.forEach(c => {
       const label = (data.cluster_labels[c] || c).split(";")[0];
       const fill = resolve(clusterColor[c] || "var(--rfe-other-fill)");
       place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill })), `${c} — ${label.slice(0, 38)}`, swW);
     });
-    [["other RFE feature", "var(--rfe-other-fill)"], ["not an RFE feature", "var(--other-fill)"]].forEach(([txt, v]) => {
+    [["other RFE feature", "var(--rfe-other-fill)"]].forEach(([txt, v]) => {
       const fill = resolve(v);
       place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill })), txt, swW);
     });
@@ -1031,22 +1040,20 @@ function renderChart(data) {
       g.appendChild(el("rect", { x: x - 1.5, y: y - 0.5, width: swW + 3, height: swH + 3, rx: 3, fill: "none", stroke: resolve("var(--anchor-stroke)"), "stroke-width": 1 }));
     }, `anchor gene (${anchorLabel})`, swW);
     const neutral = resolve("var(--other-fill)"), edge = resolve("var(--text-secondary)");
+    const sameB = resolve("var(--marker-same-border)"), refoundB = resolve("var(--marker-refound-border)");
     const markerKeys = [
-      ["strain comparison: drawn in the track", {}],
-      ["strain comparison: present, different contig", { stroke: edge }],
-      ["strain comparison: present, same contig, outside window", { stroke: edge, dash: "2.5 1.5" }],
-      ["strain comparison: present via Panaroo \"refound\" only", { stroke: edge, dash: "0.5 1.5", cap: "round" }],
+      ["Quick comparison: present, different contig", { stroke: edge, sw: 1.3 }],
+      ["Quick comparison: present, same contig, outside window", { stroke: sameB, sw: 1.8 }],
+      ["Quick comparison: present via Panaroo \"refound\" only", { stroke: refoundB, sw: 1.8 }],
     ];
     markerKeys.forEach(([txt, st]) => {
       place((x, y) => {
         const a = { x, y: y - 1, width: 11, height: 11, rx: 2, fill: neutral };
-        if (st.stroke) { a.stroke = st.stroke; a["stroke-width"] = 1.3; }
-        if (st.dash) a["stroke-dasharray"] = st.dash;
-        if (st.cap) a["stroke-linecap"] = st.cap;
+        if (st.stroke) { a.stroke = st.stroke; a["stroke-width"] = st.sw; }
         g.appendChild(el("rect", a));
       }, txt, 11);
     });
-    return { node: g, height: cy + rowH + padY };
+    return { node: g, height: Math.ceil(idx / nCols) * rowH + padY };
   }
 
   function exportSvg(scope) {
