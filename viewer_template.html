@@ -261,6 +261,12 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <select id="palette-select"></select>
         </div>
         <div class="export-control">
+          <label for="export-format">Page</label>
+          <select id="export-format">
+            <option value="screen">Screen (native)</option>
+            <option value="a4-landscape">A4 landscape</option>
+            <option value="a4-portrait">A4 portrait</option>
+          </select>
           <button type="button" class="export-btn" id="export-selected-btn" disabled>Export selected (0)</button>
           <button type="button" class="export-btn" id="export-all-btn">Export all shown</button>
           <span class="export-clear disabled" id="export-clear">clear</span>
@@ -314,6 +320,7 @@ const countSelect = document.getElementById("count-select");
 const exportSelectedBtn = document.getElementById("export-selected-btn");
 const exportAllBtn = document.getElementById("export-all-btn");
 const exportClearEl = document.getElementById("export-clear");
+const exportFormat = document.getElementById("export-format");
 const paletteSelect = document.getElementById("palette-select");
 const filterColSelects = document.querySelectorAll(".filter-col-select");
 const filterValSelects = document.querySelectorAll(".filter-val-select");
@@ -388,6 +395,42 @@ function shortClusterName(c) {
   const first = String(c).split("~~~")[0];
   const m = /^group_(.+)$/i.exec(first);
   return m ? m[1] : first;
+}
+// Source Type -> symbol category (export only). Grouping chosen by the user;
+// everything not named here (Animal, Poultry, Shellfish, Water/River, Unknown)
+// folds into "other".
+const SOURCE_CATS = [
+  ["human", "Human"], ["bovine", "Bovine"], ["ovine", "Ovine/goat"],
+  ["deer", "Deer"], ["swine", "Swine"], ["food", "Food"],
+  ["environment", "Environment"], ["other", "Other"],
+];
+function sourceCat(src) {
+  switch (src) {
+    case "Human": return "human";
+    case "Bovine": return "bovine";
+    case "Ovine/Goat (Caprinae)": return "ovine";
+    case "Deer (Cervidae)": return "deer";
+    case "Swine": return "swine";
+    case "Food": return "food";
+    case "Environment": return "environment";
+    default: return "other";
+  }
+}
+// Small monochrome source-type glyph centered at (cx,cy), drawn as SVG shapes
+// (not font glyphs) so exported files are portable for publication.
+function drawSymbol(parent, cat, cx, cy, r, paint) {
+  const add = (tag, a) => parent.appendChild(el(tag, a));
+  const sw = Math.max(1, r * 0.5);
+  switch (cat) {
+    case "human":       add("circle", { cx, cy, r, fill: paint }); break;
+    case "bovine":      add("rect", { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, fill: paint }); break;
+    case "ovine":       add("polygon", { points: `${cx},${cy - r} ${cx - r},${cy + r} ${cx + r},${cy + r}`, fill: paint }); break;
+    case "swine":       add("polygon", { points: `${cx},${cy + r} ${cx - r},${cy - r} ${cx + r},${cy - r}`, fill: paint }); break;
+    case "deer":        add("polygon", { points: `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`, fill: paint }); break;
+    case "food":        add("path", { d: `M${cx - r},${cy} H${cx + r} M${cx},${cy - r} V${cy + r}`, stroke: paint, "stroke-width": sw, "stroke-linecap": "round", fill: "none" }); break;
+    case "environment": add("rect", { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, fill: "none", stroke: paint, "stroke-width": sw }); break;
+    default:            add("path", { d: `M${cx - r},${cy - r} L${cx + r},${cy + r} M${cx - r},${cy + r} L${cx + r},${cy - r}`, stroke: paint, "stroke-width": sw, "stroke-linecap": "round", fill: "none" }); break;
+  }
 }
 
 // ---- search ----
@@ -758,16 +801,19 @@ function renderChart(data) {
     const rowsToDraw = opts.rows;
     const extentRows = opts.extentRows || rowsToDraw;
 
-    const rowH = 20, rowGap = 2, sectionGapTop = 30, labelW = 320;
-    const markerSize = 9, markerGap = 3, markerLeftPad = 14, checkSize = 11;
-    const gutterW = markerLeftPad + data.top_rfe_clusters.length * (markerSize + markerGap);
-    const plotW = 1280, pad = 800;
+    const rowH = 20, rowGap = 2, sectionGapTop = 30;
+    const labelW = opts.labelW ?? 320;
+    const markerSize = 9, markerGap = 3, markerLeftPad = opts.markerLeftPad ?? 14, checkSize = 11;
+    // Print profiles can cap how many gutter columns are drawn to save width.
+    const gutterClusters = opts.maxGutter ? data.top_rfe_clusters.slice(0, opts.maxGutter) : data.top_rfe_clusters;
+    const gutterW = markerLeftPad + gutterClusters.length * (markerSize + markerGap);
+    const plotW = opts.plotW ?? 1280, pad = opts.pad ?? 800;
     const plotX0 = labelW;
     const labelX = live ? 19 : 10;
     const gutterX0 = plotX0 + plotW + markerLeftPad;
     // Header band for the vertical per-column short-name labels (the gutter
     // columns are the same clusters in every row, so label them once at the top).
-    const colLabelH = data.top_rfe_clusters.length ? 54 : 0;
+    const colLabelH = gutterClusters.length ? 54 : 0;
 
     // Gene set per row within the window -- computed locally, never written
     // back onto the shared row object (the live chart and an export must run
@@ -818,7 +864,7 @@ function renderChart(data) {
     // Vertical short-name label above each fixed gutter column, once at the top.
     if (colLabelH) {
       const baseY = offsetY + colLabelH - 6;
-      data.top_rfe_clusters.forEach((cl, i) => {
+      gutterClusters.forEach((cl, i) => {
         const cx = gutterX0 + i * (markerSize + markerGap) + markerSize / 2;
         const t = el("text", live
           ? { class: "col-label", x: cx, y: baseY, transform: `rotate(-90 ${cx} ${baseY})` }
@@ -855,12 +901,20 @@ function renderChart(data) {
         target.appendChild(tick);
       }
 
-      const label = el("text", live
-        ? { class: "row-label", x: labelX, y: rowY + rowH / 2 + 3 }
-        : { x: labelX, y: rowY + rowH / 2 + 3, fill: resolve("var(--text-secondary)"), "font-size": 10, "font-family": "monospace" });
-      const testScoreSuffix = (r.test_score != null) ? `  [test score ${r.test_score.toFixed(3)}]` : "";
-      label.textContent = `${r.genome_id}  ${r.mge_type}  ${r.source_type}${testScoreSuffix}`;
-      target.appendChild(label);
+      if (live) {
+        const label = el("text", { class: "row-label", x: labelX, y: rowY + rowH / 2 + 3 });
+        const testScoreSuffix = (r.test_score != null) ? `  [test score ${r.test_score.toFixed(3)}]` : "";
+        label.textContent = `${r.genome_id}  ${r.mge_type}  ${r.source_type}${testScoreSuffix}`;
+        target.appendChild(label);
+      } else {
+        // Export: source type as a symbol (see key), genomad prediction + test
+        // score dropped to save space.
+        const sy = rowY + rowH / 2;
+        drawSymbol(target, sourceCat(r.source_type), labelX + 4, sy, 3.5, resolve("var(--text-primary)"));
+        const label = el("text", { x: labelX + 13, y: sy + 3, fill: resolve("var(--text-primary)"), "font-size": 10, "font-family": "monospace" });
+        label.textContent = r.genome_id;
+        target.appendChild(label);
+      }
 
       if (r.contig_rel_start != null) {
         const segStart = Math.max(r.contig_rel_start, -windowBp);
@@ -911,7 +965,7 @@ function renderChart(data) {
       // ---- per-gene strain-comparison status boxes: one fixed column per tracked gene ----
       const markerMap = {};
       (r.gutter_markers || []).forEach(m => { markerMap[m.cluster] = m.state; });
-      data.top_rfe_clusters.forEach((cl, i) => {
+      gutterClusters.forEach((cl, i) => {
         const state = markerMap[cl];
         if (!state) return;
         const mx = gutterX0 + i * (markerSize + markerGap);
@@ -1009,19 +1063,20 @@ function renderChart(data) {
     return { node: g, height: 40 };
   }
 
-  function buildLegendGroup(resolve, maxWidth) {
+  function buildLegendGroup(resolve, maxWidth, presentCats, nCols) {
     const g = el("g", {});
-    // Fixed 4-column grid so items line up in neat columns (mirrors the live
-    // HTML legend); placement is row-major by call order.
-    const nCols = 4, rowH = 18, swW = 13, swH = 9, gapSW = 6, padX = 0, padY = 0;
-    const colW = (maxWidth - padX * 2) / nCols;
+    // Column grid so items line up in neat columns (mirrors the live HTML
+    // legend); placement is row-major by call order. Print uses fewer columns
+    // (wider cells) so the long feature names don't overlap.
+    const cols = nCols || 4, rowH = 14, swW = 10, swH = 7, gapSW = 5, padX = 0, padY = 0;
+    const colW = (maxWidth - padX * 2) / cols;
     let idx = 0;
     const textFill = resolve("var(--text-secondary)");
     const place = (drawSwatch, text, swWidth) => {
-      const col = idx % nCols, row = Math.floor(idx / nCols);
+      const col = idx % cols, row = Math.floor(idx / cols);
       const cx = padX + col * colW, cy = padY + row * rowH;
       drawSwatch(cx, cy);
-      const t = el("text", { x: cx + swWidth + gapSW, y: cy + 9, fill: textFill, "font-size": 12, "font-family": "sans-serif" });
+      const t = el("text", { x: cx + swWidth + gapSW, y: cy + 7, fill: textFill, "font-size": 9, "font-family": "sans-serif" });
       t.textContent = text;
       g.appendChild(t);
       idx++;
@@ -1048,16 +1103,32 @@ function renderChart(data) {
     ];
     markerKeys.forEach(([txt, st]) => {
       place((x, y) => {
-        const a = { x, y: y - 1, width: 11, height: 11, rx: 2, fill: neutral };
+        const a = { x, y: y, width: 8, height: 8, rx: 2, fill: neutral };
         if (st.stroke) { a.stroke = st.stroke; a["stroke-width"] = st.sw; }
         g.appendChild(el("rect", a));
-      }, txt, 11);
+      }, txt, 8);
     });
-    return { node: g, height: Math.ceil(idx / nCols) * rowH + padY };
+    // Source-type symbol key (only categories actually present in this export).
+    const symbolPaint = resolve("var(--text-primary)");
+    SOURCE_CATS.filter(([cat]) => !presentCats || presentCats.has(cat)).forEach(([cat, label]) => {
+      place((x, y) => drawSymbol(g, cat, x + 4, y + 4, 2.8, symbolPaint), `source: ${label}`, 8);
+    });
+    return { node: g, height: Math.ceil(idx / cols) * rowH + padY };
   }
 
-  function exportSvg(scope) {
-    const windowBp = Number(windowSelect.value);
+  const MM = 3.779528;            // px per mm at 96dpi
+  const PRINT_MARGIN_MM = 10;     // white margin inside the A4 page
+  const FONT_FLOOR_PT = 6;        // warn if row labels would print smaller
+  const PRINT_PROFILES = {
+    // Compact publication layouts. plotW is deliberately ~half the page-fill
+    // width (denser genes) so more genomic context fits; pad/markerLeftPad trim
+    // whitespace between the name, the gene track and the gutter. keyCols keeps
+    // the long feature names from overlapping in the narrower key.
+    "a4-landscape": { pageWmm: 297, pageHmm: 210, labelW: 130, plotW: 340, maxGutter: 12, keyCols: 3, pad: 60, markerLeftPad: 6, maxWindowBp: 20000 },
+    "a4-portrait":  { pageWmm: 210, pageHmm: 297, labelW: 120, plotW: 240, maxGutter: 8,  keyCols: 2, pad: 50, markerLeftPad: 6, maxWindowBp: 10000 },
+  };
+
+  function exportSvg(scope, format) {
     const shown = rows.filter(passesFilters);
     const exportRows = (scope === "selected")
       ? shown.filter(r => selectedGenomes.has(r.genome_id))
@@ -1065,8 +1136,25 @@ function renderChart(data) {
     if (!exportRows.length) return null;
 
     const resolve = makeResolver(bakeLightVars());
-    const chartW = 320 + 1280 + (14 + data.top_rfe_clusters.length * (9 + 3)) + 20;
     const margin = 16;
+    const p = PRINT_PROFILES[format] || null;   // null => screen (native)
+    const nGut = data.top_rfe_clusters.length;
+
+    // Layout params. Screen keeps the native wide layout. Print uses a compact
+    // profile: denser (narrower) gene track, trimmed padding, and a window
+    // capped per orientation.
+    let labelW, plotW, maxGutter, windowBp, pad, markLP;
+    if (p) {
+      labelW = p.labelW; plotW = p.plotW;
+      maxGutter = Math.min(nGut, p.maxGutter);
+      windowBp = Math.min(Number(windowSelect.value), p.maxWindowBp);
+      pad = p.pad; markLP = p.markerLeftPad;
+    } else {
+      labelW = 200; plotW = 1280; maxGutter = nGut;
+      windowBp = Number(windowSelect.value);
+    }
+    const mlp = markLP ?? 14;
+    const chartW = labelW + plotW + (mlp + maxGutter * (9 + 3)) + 20;
 
     const out = el("svg", {});
     out.setAttribute("xmlns", NS);
@@ -1074,14 +1162,15 @@ function renderChart(data) {
     const title = buildTitle(resolve, exportRows.length, windowBp);
     title.node.setAttribute("transform", `translate(${margin}, ${margin})`);
 
+    const presentCats = new Set(exportRows.map(r => sourceCat(r.source_type)));
     const legendTop = margin + title.height + 10;
-    const legend = buildLegendGroup(resolve, chartW);
+    const legend = buildLegendGroup(resolve, chartW, presentCats, p ? p.keyCols : 4);
     legend.node.setAttribute("transform", `translate(${margin}, ${legendTop})`);
 
     const tracksTop = legendTop + legend.height + 12;
     const tracksG = el("g", { transform: `translate(${margin}, 0)` });
     out.appendChild(tracksG);
-    const dim = renderTracks(tracksG, { rows: exportRows, extentRows: shown, windowBp, live: false, resolve, offsetY: tracksTop });
+    const dim = renderTracks(tracksG, { rows: exportRows, extentRows: p ? exportRows : shown, windowBp, live: false, resolve, offsetY: tracksTop, labelW, plotW, maxGutter, pad, markerLeftPad: markLP });
 
     const canvasW = chartW + margin * 2;
     const canvasH = dim.height + margin;
@@ -1089,13 +1178,33 @@ function renderChart(data) {
     out.insertBefore(bg, out.firstChild);
     out.appendChild(title.node);
     out.appendChild(legend.node);
-    out.setAttribute("width", canvasW);
-    out.setAttribute("height", canvasH);
     out.setAttribute("viewBox", `0 0 ${canvasW} ${canvasH}`);
+
+    if (p) {
+      // Uniform-scale the whole figure to fit within the A4 usable area (never
+      // upscale); size the file in mm so it drops into a manuscript at final
+      // physical size with no letterboxing or clipping.
+      const usableWpx = (p.pageWmm - 2 * PRINT_MARGIN_MM) * MM;
+      const usableHpx = (p.pageHmm - 2 * PRINT_MARGIN_MM) * MM;
+      const scale = Math.min(usableWpx / canvasW, usableHpx / canvasH, 1);
+      const printedPt = 10 * scale * 0.75;   // 10px row label -> pt on the page
+      if (printedPt < FONT_FLOOR_PT) {
+        const ok = confirm(
+          `This figure scales to ~${printedPt.toFixed(1)}pt row labels on A4 ${format.split("-")[1]}, ` +
+          `below the ${FONT_FLOOR_PT}pt print floor.\n\n` +
+          `Fewer genomes (use "Export selected") will read better. Export anyway?`);
+        if (!ok) return null;
+      }
+      out.setAttribute("width", (canvasW * scale / MM).toFixed(2) + "mm");
+      out.setAttribute("height", (canvasH * scale / MM).toFixed(2) + "mm");
+    } else {
+      out.setAttribute("width", canvasW);
+      out.setAttribute("height", canvasH);
+    }
     return out;
   }
 
-  function downloadSvg(node, scope) {
+  function downloadSvg(node, scope, format) {
     const xml = new XMLSerializer().serializeToString(node);
     const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', xml], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -1103,7 +1212,7 @@ function renderChart(data) {
     const date = new Date().toISOString().slice(0, 10);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `pangenome_${safe}_${scope}_${date}.svg`;
+    a.download = `pangenome_${safe}_${scope}_${format}_${date}.svg`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -1111,8 +1220,9 @@ function renderChart(data) {
   }
 
   function runExport(scope) {
-    const node = exportSvg(scope);
-    if (node) downloadSvg(node, scope);
+    const format = exportFormat.value;
+    const node = exportSvg(scope, format);
+    if (node) downloadSvg(node, scope, format);
   }
 
   exportSelectedBtn.onclick = () => runExport("selected");
