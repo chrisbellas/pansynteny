@@ -17,6 +17,7 @@
   --s1: #2a78d6; --s2: #008300; --s3: #e87ba4; --s4: #eda100;
   --s5: #1baf7a; --s6: #eb6834; --s7: #4a3aa7; --s8: #e34948;
   --s9: #b8960b; --s10: #0e93a3; --s11: #a13391; --s12: #8a5a2b;
+  --s13: #7cb342; --s14: #5c6bc0; --s15: #d81b60; --s16: #607d8b;
   --rfe-other-fill: #fab219;
   --rfe-other-stroke: #0b0b0b;
   --section-bg: #f2f1ec;
@@ -33,6 +34,7 @@
     --s1: #3987e5; --s2: #008300; --s3: #d55181; --s4: #c98500;
     --s5: #199e70; --s6: #d95926; --s7: #9085e9; --s8: #e66767;
     --s9: #d4af1f; --s10: #22b8cc; --s11: #c752b3; --s12: #b9814f;
+    --s13: #9ccc65; --s14: #7986cb; --s15: #ec407a; --s16: #90a4ae;
     --rfe-other-fill: #d99a1e;
     --rfe-other-stroke: #ffffff;
     --section-bg: #202020;
@@ -49,6 +51,7 @@
   --s1: #3987e5; --s2: #008300; --s3: #d55181; --s4: #c98500;
   --s5: #199e70; --s6: #d95926; --s7: #9085e9; --s8: #e66767;
   --s9: #d4af1f; --s10: #22b8cc; --s11: #c752b3; --s12: #b9814f;
+  --s13: #9ccc65; --s14: #7986cb; --s15: #ec407a; --s16: #90a4ae;
   --rfe-other-fill: #d99a1e;
   --rfe-other-stroke: #ffffff;
   --section-bg: #202020;
@@ -64,6 +67,7 @@
   --s1: #2a78d6; --s2: #008300; --s3: #e87ba4; --s4: #eda100;
   --s5: #1baf7a; --s6: #eb6834; --s7: #4a3aa7; --s8: #e34948;
   --s9: #b8960b; --s10: #0e93a3; --s11: #a13391; --s12: #8a5a2b;
+  --s13: #7cb342; --s14: #5c6bc0; --s15: #d81b60; --s16: #607d8b;
   --rfe-other-fill: #fab219; --rfe-other-stroke: #0b0b0b;
   --section-bg: #f2f1ec;
   --seq-line: rgba(11,11,11,0.28);
@@ -176,6 +180,7 @@ svg { display: block; }
 .section-bg { fill: var(--section-bg); }
 
 .row-label { fill: var(--text-secondary); font-size: 10px; font-family: ui-monospace, monospace; }
+.col-label { fill: var(--text-secondary); font-size: 8px; font-family: ui-monospace, monospace; text-anchor: start; }
 .axis-line { stroke: var(--baseline); stroke-width: 1; }
 .seq-line { stroke: var(--seq-line); stroke-width: 1.5; }
 .anchor-line { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 3; }
@@ -290,7 +295,7 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
 <div id="tooltip"></div>
 
 <script>
-const S_COLORS = ["s1","s2","s3","s4","s5","s6","s7","s8","s9","s10","s11","s12"];
+const S_COLORS = ["s1","s2","s3","s4","s5","s6","s7","s8","s9","s10","s11","s12","s13","s14","s15","s16"];
 const NS = "http://www.w3.org/2000/svg";
 
 const searchInput = document.getElementById("search-input");
@@ -333,15 +338,15 @@ fetch("/api/metadata_totals").then(r => r.json()).then(d => {
 // to). Persisted in localStorage so it survives reloads and new chart builds.
 const PALETTES = {
   "Default": null,
-  "Tableau": ["#4e79a7","#f28e2b","#e15759","#76b7b2","#59a14f","#edc948","#b07aa1","#ff9da7","#9c755f","#86bcb6","#d37295","#b6992d"],
-  "D3 Category": ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#17becf","#bcbd22","#aec7e8","#98df8a","#ff9896"],
-  "Vivid": ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#f032e6","#42d4f4","#469990","#9a6324","#808000","#bfef45","#fabed4"],
-  "Set3 (soft)": ["#8dd3c7","#fdb462","#bebada","#fb8072","#80b1d3","#b3de69","#fccde5","#bc80bd","#ccebc5","#d3c14a","#e78ac3","#a6d854"],
+  "Tableau": ["#4e79a7","#f28e2b","#e15759","#76b7b2","#59a14f","#edc948","#b07aa1","#ff9da7","#9c755f","#86bcb6","#d37295","#b6992d","#499894","#d4a6c8","#a0cbe8","#8cd17d"],
+  "D3 Category": ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#17becf","#bcbd22","#aec7e8","#98df8a","#ff9896","#ffbb78","#c5b0d5","#9edae5","#dbdb8d"],
+  "Vivid": ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#f032e6","#42d4f4","#469990","#9a6324","#808000","#bfef45","#fabed4","#ffe119","#800000","#000075","#aaffc3"],
+  "Set3 (soft)": ["#8dd3c7","#fdb462","#bebada","#fb8072","#80b1d3","#b3de69","#fccde5","#bc80bd","#ccebc5","#d3c14a","#e78ac3","#a6d854","#ff9e6d","#74add1","#c994c7","#78c679"],
 };
 function applyPalette(name) {
   const cols = PALETTES[name];
   const root = document.documentElement;
-  for (let i = 1; i <= 12; i++) {
+  for (let i = 1; i <= 16; i++) {
     if (cols) root.style.setProperty(`--s${i}`, cols[i - 1]);
     else root.style.removeProperty(`--s${i}`);
   }
@@ -372,6 +377,13 @@ function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 function measureApprox(s) { return s.length * 6.5; }
+// Short label for a Panaroo cluster: "group_10600" -> "10600"; an annotated
+// name takes its first "~~~" paralog segment ("sopA~~~sopA_1" -> "sopA").
+function shortClusterName(c) {
+  const first = String(c).split("~~~")[0];
+  const m = /^group_(.+)$/i.exec(first);
+  return m ? m[1] : first;
+}
 
 // ---- search ----
 let searchDebounce = null;
@@ -469,10 +481,12 @@ function renderChart(data) {
   const anchorLabel = (data.anchor_non_unique_name || "").split(";").filter(Boolean)[0] || data.anchor_cluster;
   document.getElementById("anchor-name").textContent = anchorLabel;
   const nDropped = (data.n_dropped_refound || 0) + (data.n_dropped_other || 0);
+  const hasOtherBucket = (data.sero_buckets || []).includes("Other");
+  const nTopSeros = (data.sero_buckets || []).length - (hasOtherBucket ? 1 : 0);
   let subtitle =
     `Showing ${data.n_shown} of ${data.total_group_members} genomes carrying ${data.anchor_cluster}` +
     (data.anchor_annotation ? ` (${data.anchor_annotation.split(";").filter(Boolean)[0]})` : "") +
-    `, stratified by top-3 serotype + Other.`;
+    `, stratified by top-${nTopSeros} serotype${hasOtherBucket ? " + Other" : ""}.`;
   if (nDropped > 0) {
     subtitle += ` ${nDropped} sampled genome${nDropped === 1 ? "" : "s"} dropped` +
       (data.n_dropped_refound > 0
@@ -747,6 +761,10 @@ function renderChart(data) {
     const plotW = 1280, pad = 800;
     const plotX0 = labelW;
     const labelX = live ? 19 : 10;
+    const gutterX0 = plotX0 + plotW + markerLeftPad;
+    // Header band for the vertical per-column short-name labels (the gutter
+    // columns are the same clusters in every row, so label them once at the top).
+    const colLabelH = data.top_rfe_clusters.length ? 54 : 0;
 
     // Gene set per row within the window -- computed locally, never written
     // back onto the shared row object (the live chart and an export must run
@@ -765,7 +783,7 @@ function renderChart(data) {
     rowsToDraw.forEach(r => { if (!byBucket[r.sero_bucket]) byBucket[r.sero_bucket] = []; byBucket[r.sero_bucket].push(r); });
 
     const yOf = new Map();
-    let y = 10 + offsetY;
+    let y = 10 + offsetY + colLabelH;
     const sections = [];
     data.sero_buckets.forEach(b => {
       const bucketRows = byBucket[b] || [];
@@ -794,9 +812,22 @@ function renderChart(data) {
       target.appendChild(tc);
     });
 
+    // Vertical short-name label above each fixed gutter column, once at the top.
+    if (colLabelH) {
+      const baseY = offsetY + colLabelH - 6;
+      data.top_rfe_clusters.forEach((cl, i) => {
+        const cx = gutterX0 + i * (markerSize + markerGap) + markerSize / 2;
+        const t = el("text", live
+          ? { class: "col-label", x: cx, y: baseY, transform: `rotate(-90 ${cx} ${baseY})` }
+          : { x: cx, y: baseY, transform: `rotate(-90 ${cx} ${baseY})`, fill: resolve("var(--text-secondary)"), "font-size": 8, "font-family": "sans-serif", "text-anchor": "start" });
+        t.textContent = shortClusterName(cl).slice(0, 12);
+        target.appendChild(t);
+      });
+    }
+
     target.appendChild(el("line", live
-      ? { class: "anchor-line", x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4 + offsetY, y2: totalH - 16 }
-      : { x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4 + offsetY, y2: totalH - 16, stroke: resolve("var(--text-muted)"), "stroke-width": 1, "stroke-dasharray": "2 3" }));
+      ? { class: "anchor-line", x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4 + offsetY + colLabelH, y2: totalH - 16 }
+      : { x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4 + offsetY + colLabelH, y2: totalH - 16, stroke: resolve("var(--text-muted)"), "stroke-width": 1, "stroke-dasharray": "2 3" }));
 
     rowsToDraw.forEach(r => {
       const rowY = yOf.get(r);
@@ -877,7 +908,6 @@ function renderChart(data) {
       // ---- per-gene strain-comparison status boxes: one fixed column per tracked gene ----
       const markerMap = {};
       (r.gutter_markers || []).forEach(m => { markerMap[m.cluster] = m.state; });
-      const gutterX0 = plotX0 + plotW + markerLeftPad;
       data.top_rfe_clusters.forEach((cl, i) => {
         const state = markerMap[cl];
         if (!state) return;
@@ -936,6 +966,7 @@ function renderChart(data) {
   // palette selector flows through automatically.
   const EXPORT_VARS = [
     "--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8","--s9","--s10","--s11","--s12",
+    "--s13","--s14","--s15","--s16",
     "--other-fill","--other-stroke","--rfe-other-fill","--rfe-other-stroke",
     "--anchor-fill","--anchor-stroke","--text-primary","--text-secondary","--text-muted",
     "--section-bg","--seq-line","--surface-1",

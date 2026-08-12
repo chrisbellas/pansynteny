@@ -88,8 +88,9 @@ STRIP_GENOME_SUFFIXES = ()
 
 DEFAULT_COUNT = 500
 COUNT_OPTIONS = [100, 200, 500, 1000, 2000, "all"]
-TOP_N_COLORED = 12  # RFE features tracked + individually colored in the
+TOP_N_COLORED = 16  # RFE features tracked + individually colored in the
                      # strain-comparison column
+TOP_N_SEROTYPES = 10  # serotypes kept as their own row-group before "Other"
 RANDOM_SEED = 42
 WINDOW_OPTIONS_BP = [5000, 10000, 20000, 30000, 40000]
 BUILD_WINDOW = WINDOW_OPTIONS_BP[-1]  # always build the widest superset;
@@ -582,7 +583,7 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT):
         return (m["serotype"] if m else "Unknown"), (m["source_type"] if m else "Unknown")
 
     sero_counts = Counter(sero_for(g)[0] for g in stems)
-    top_seros = [s for s, _ in sero_counts.most_common(3)]
+    top_seros = [s for s, _ in sero_counts.most_common(TOP_N_SEROTYPES)]
 
     def sero_bucket(genome_id):
         s, _ = sero_for(genome_id)
