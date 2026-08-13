@@ -23,6 +23,7 @@
   --rfe-other-stroke: #0b0b0b;
   --section-bg: #f2f1ec;
   --seq-line: rgba(11,11,11,0.28);
+  --n-gap: rgba(30,110,240,0.55);
   --accent: #2a78d6;
 }
 @media (prefers-color-scheme: dark) {
@@ -41,6 +42,7 @@
     --rfe-other-stroke: #ffffff;
     --section-bg: #202020;
     --seq-line: rgba(255,255,255,0.55);
+    --n-gap: rgba(90,170,255,0.60);
     --accent: #3987e5;
   }
 }
@@ -59,6 +61,7 @@
   --rfe-other-stroke: #ffffff;
   --section-bg: #202020;
   --seq-line: rgba(255,255,255,0.55);
+  --n-gap: rgba(90,170,255,0.60);
   --accent: #3987e5;
 }
 :root[data-theme="light"] {
@@ -75,6 +78,7 @@
   --rfe-other-fill: #fab219; --rfe-other-stroke: #0b0b0b;
   --section-bg: #f2f1ec;
   --seq-line: rgba(11,11,11,0.28);
+  --n-gap: rgba(30,110,240,0.55);
   --accent: #2a78d6;
 }
 * { box-sizing: border-box; }
@@ -136,6 +140,7 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
   border-radius: 8px; margin-bottom: 18px; font-size: 12px; line-height: 1.3; color: var(--text-secondary);
 }
 .legend-item { display: flex; align-items: flex-start; gap: 6px; }
+.legend-sep { grid-column: 1 / -1; border-top: 1px solid var(--border); height: 0; margin: 3px 0; }
 .swatch { width: 13px; height: 9px; border-radius: 2px; flex: none; margin-top: 3px; }
 .swatch.anchor-swatch { position: relative; }
 .swatch.anchor-swatch::after {
@@ -155,6 +160,7 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
   background: var(--surface-1); color: var(--text-primary); cursor: pointer;
 }
 .export-control { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
+.export-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .export-btn {
   font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 6px;
   border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); cursor: pointer;
@@ -188,6 +194,7 @@ svg { display: block; }
 .col-label { fill: var(--text-secondary); font-size: 8px; font-family: ui-monospace, monospace; text-anchor: start; }
 .axis-line { stroke: var(--baseline); stroke-width: 1; }
 .seq-line { stroke: var(--seq-line); stroke-width: 1.5; }
+.n-gap { fill: var(--n-gap); stroke: none; }
 .anchor-line { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 3; }
 
 .gene-arrow { stroke-width: 0.75; cursor: pointer; }
@@ -257,8 +264,17 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <select id="window-select"></select>
         </div>
         <div class="window-control">
+          <label>Assembly gaps</label>
+          <label class="export-toggle"><input type="checkbox" id="ngap-toggle"> Show N-runs (slower)</label>
+        </div>
+        <div class="window-control">
           <label for="palette-select">Palette</label>
           <select id="palette-select"></select>
+        </div>
+        <div class="window-control">
+          <label for="label-col-1">Row labels</label>
+          <select id="label-col-1"></select>
+          <select id="label-col-2"></select>
         </div>
         <div class="export-control">
           <label for="export-format">Page</label>
@@ -267,6 +283,7 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
             <option value="a4-landscape">A4 landscape</option>
             <option value="a4-portrait">A4 portrait</option>
           </select>
+          <label class="export-toggle"><input type="checkbox" id="export-gutter" checked> Quick comparison</label>
           <button type="button" class="export-btn" id="export-selected-btn" disabled>Export selected (0)</button>
           <button type="button" class="export-btn" id="export-all-btn">Export all shown</button>
           <span class="export-clear disabled" id="export-clear">clear</span>
@@ -317,11 +334,25 @@ const svg = document.getElementById("chart");
 const tooltip = document.getElementById("tooltip");
 const windowSelect = document.getElementById("window-select");
 const countSelect = document.getElementById("count-select");
+const nGapToggle = document.getElementById("ngap-toggle");
+// N-runs are computed server-side (opt-in, ~2s), so toggling re-fetches the
+// chart -- same pattern as the genome-count selector, not a client-side redraw.
+nGapToggle.onchange = () => {
+  if (!currentAnchor) return;
+  pendingWindowBp = Number(windowSelect.value);
+  buildChart(currentAnchor, countSelect.value);
+};
 const exportSelectedBtn = document.getElementById("export-selected-btn");
 const exportAllBtn = document.getElementById("export-all-btn");
 const exportClearEl = document.getElementById("export-clear");
 const exportFormat = document.getElementById("export-format");
+const exportGutter = document.getElementById("export-gutter");
 const paletteSelect = document.getElementById("palette-select");
+const labelColSelects = [document.getElementById("label-col-1"), document.getElementById("label-col-2")];
+// Row-label extras: up to two metadata columns shown after the strain name.
+// Set SHOW_TEST_SCORE=true to bring the held-out test score back into the label.
+const SHOW_TEST_SCORE = false;
+const LABEL_MGE = "__mge__";   // special option: the genomad MGE type (not a metadata column)
 const filterColSelects = document.querySelectorAll(".filter-col-select");
 const filterValSelects = document.querySelectorAll(".filter-val-select");
 const filterBoxStats = document.querySelectorAll(".filter-box-stat");
@@ -432,6 +463,19 @@ function drawSymbol(parent, cat, cx, cy, r, paint) {
     default:            add("path", { d: `M${cx - r},${cy - r} L${cx + r},${cy + r} M${cx - r},${cy + r} L${cx + r},${cy - r}`, stroke: paint, "stroke-width": sw, "stroke-linecap": "round", fill: "none" }); break;
   }
 }
+// Live row label: strain name + up to two selected metadata columns (the "Row
+// labels" selectors). Test score is only appended when SHOW_TEST_SCORE is true.
+function rowLabelText(r) {
+  let s = r.genome_id;
+  labelColSelects.forEach(sel => {
+    const col = sel.value;
+    if (!col) return;
+    const v = col === LABEL_MGE ? r.mge_type : (r.metadata ? r.metadata[col] : "");
+    if (v) s += "  " + v;
+  });
+  if (SHOW_TEST_SCORE && r.test_score != null) s += `  [test score ${r.test_score.toFixed(3)}]`;
+  return s;
+}
 
 // ---- search ----
 let searchDebounce = null;
@@ -507,6 +551,7 @@ function buildChart(cluster, count) {
     `a few minutes)`;
   let url = "/api/chart?anchor=" + encodeURIComponent(cluster);
   if (count) url += "&count=" + encodeURIComponent(count);
+  if (nGapToggle.checked) url += "&n_runs=1";
   fetch(url)
     .then(r => r.json())
     .then(data => {
@@ -702,6 +747,27 @@ function renderChart(data) {
     sel.onchange = () => { updateFilterStat(i); draw(Number(windowSelect.value)); };
   });
 
+  // ---- row-label extra columns (up to two metadata columns after the name) ----
+  function populateLabelColumnOptions() {
+    const cols = data.metadata_columns || [];
+    const optsHtml = '<option value="">(none)</option>'
+      + `<option value="${LABEL_MGE}">MGE type</option>`
+      + cols.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+    const valid = ["", LABEL_MGE, ...cols];
+    const stored = [localStorage.getItem("pgv_label_1"), localStorage.getItem("pgv_label_2")];
+    const fallback = [data.metadata_source_col || "", ""];   // default: host col, then none
+    labelColSelects.forEach((sel, i) => {
+      const want = sel.value || (stored[i] != null ? stored[i] : fallback[i]);
+      sel.innerHTML = optsHtml;
+      sel.value = valid.includes(want) ? want : "";
+      sel.onchange = () => {
+        localStorage.setItem(`pgv_label_${i + 1}`, sel.value);
+        draw(Number(windowSelect.value));
+      };
+    });
+  }
+  populateLabelColumnOptions();
+
   // ---- legend (fixed regardless of window) ----
   const clusterColor = {};
   data.top_rfe_clusters.forEach((c, i) => { clusterColor[c] = `var(--${S_COLORS[i]})`; });
@@ -726,6 +792,8 @@ function renderChart(data) {
   });
   items.push(`<div class="legend-item"><div class="swatch" style="background:var(--rfe-other-fill)"></div>other RFE feature</div>`);
   items.push(`<div class="legend-item"><div class="swatch anchor-swatch" style="background:var(--anchor-fill)"></div>anchor gene (${escapeHtml(anchorLabel)})</div>`);
+  if (data.n_runs_included) items.push(`<div class="legend-item"><div class="swatch" style="background:var(--n-gap)"></div>assembly gap (run of N, &ge;${data.min_n_run || 10}bp)</div>`);
+  items.push(`<div class="legend-sep"></div>`);
   items.push(`<div class="legend-item"><div class="marker-swatch state-diff"></div>Quick comparison: present, different contig</div>`);
   items.push(`<div class="legend-item"><div class="marker-swatch state-same"></div>Quick comparison: present, same contig, outside window</div>`);
   items.push(`<div class="legend-item"><div class="marker-swatch state-refound"></div>Quick comparison: present via Panaroo "refound" only</div>`);
@@ -801,11 +869,16 @@ function renderChart(data) {
     const rowsToDraw = opts.rows;
     const extentRows = opts.extentRows || rowsToDraw;
 
-    const rowH = 20, rowGap = 2, sectionGapTop = 30;
+    const rowH = 20, rowGap = 2;
+    // Header band above each serotype block, and a blank gap between blocks.
+    // Export tightens the header->strains gap and adds a line between blocks.
+    const sectionHeaderH = opts.sectionHeaderH ?? 30;
+    const sectionGap = opts.sectionGap ?? 0;
+    const headerBaseY = Math.min(14, sectionHeaderH - 4);
     const labelW = opts.labelW ?? 320;
     const markerSize = 9, markerGap = 3, markerLeftPad = opts.markerLeftPad ?? 14, checkSize = 11;
-    // Print profiles can cap how many gutter columns are drawn to save width.
-    const gutterClusters = opts.maxGutter ? data.top_rfe_clusters.slice(0, opts.maxGutter) : data.top_rfe_clusters;
+    // Print can cap the gutter columns (0 = none; undefined = all, for live).
+    const gutterClusters = opts.maxGutter != null ? data.top_rfe_clusters.slice(0, opts.maxGutter) : data.top_rfe_clusters;
     const gutterW = markerLeftPad + gutterClusters.length * (markerSize + markerGap);
     const plotW = opts.plotW ?? 1280, pad = opts.pad ?? 800;
     const plotX0 = labelW;
@@ -837,8 +910,9 @@ function renderChart(data) {
     data.sero_buckets.forEach(b => {
       const bucketRows = byBucket[b] || [];
       if (!bucketRows.length) return;
+      if (sections.length) y += sectionGap;   // blank line between blocks
       const sectionTop = y;
-      y += sectionGapTop;
+      y += sectionHeaderH;
       bucketRows.forEach(r => { yOf.set(r, y); y += rowH + rowGap; });
       sections.push({ label: b, count: bucketRows.length, top: sectionTop, rowsEnd: y - rowGap });
     });
@@ -850,13 +924,13 @@ function renderChart(data) {
         ? { class: "section-bg", x: 0, y: s.top, width: totalW, height: s.rowsEnd - s.top + 8 }
         : { x: 0, y: s.top, width: totalW, height: s.rowsEnd - s.top + 8, fill: resolve("var(--section-bg)") }));
       const t = el("text", live
-        ? { class: "section-label", x: 10, y: s.top + 14 }
-        : { x: 10, y: s.top + 14, fill: resolve("var(--text-primary)"), "font-size": 12, "font-weight": 650, "font-family": "sans-serif" });
+        ? { class: "section-label", x: 10, y: s.top + headerBaseY }
+        : { x: 10, y: s.top + headerBaseY, fill: resolve("var(--text-primary)"), "font-size": 12, "font-weight": 650, "font-family": "sans-serif" });
       t.textContent = `${s.label}`;
       target.appendChild(t);
       const tc = el("text", live
-        ? { class: "section-count", x: 10 + measureApprox(s.label) + 6, y: s.top + 14 }
-        : { x: 10 + measureApprox(s.label) + 6, y: s.top + 14, fill: resolve("var(--text-muted)"), "font-size": 11, "font-family": "sans-serif" });
+        ? { class: "section-count", x: 10 + measureApprox(s.label) + 6, y: s.top + headerBaseY }
+        : { x: 10 + measureApprox(s.label) + 6, y: s.top + headerBaseY, fill: resolve("var(--text-muted)"), "font-size": 11, "font-family": "sans-serif" });
       tc.textContent = `(${s.count} shown)`;
       target.appendChild(tc);
     });
@@ -903,8 +977,7 @@ function renderChart(data) {
 
       if (live) {
         const label = el("text", { class: "row-label", x: labelX, y: rowY + rowH / 2 + 3 });
-        const testScoreSuffix = (r.test_score != null) ? `  [test score ${r.test_score.toFixed(3)}]` : "";
-        label.textContent = `${r.genome_id}  ${r.mge_type}  ${r.source_type}${testScoreSuffix}`;
+        label.textContent = rowLabelText(r);
         target.appendChild(label);
       } else {
         // Export: source type as a symbol (see key), genomad prediction + test
@@ -925,6 +998,21 @@ function renderChart(data) {
             : { x1: plotX0 + scaleX(segStart), x2: plotX0 + scaleX(segEnd), y1: rowY + rowH / 2, y2: rowY + rowH / 2, stroke: resolve("var(--seq-line)"), "stroke-width": 1.5 }));
         }
       }
+
+      // Scaffold-gap N-runs: shaded bands behind the genes. Clip to the plotted
+      // domain [minX,maxX] (gene extents, what scaleX maps) -- NOT to the window:
+      // N-runs sit in gene-poor stretches, so a window-clip would place them
+      // outside the plot, bleeding into the labels or gutter.
+      // Real runs can be as small as ~10bp (sub-pixel here), so floor the width.
+      (r.n_runs || []).forEach(nr => {
+        const s = Math.max(nr.start, minX), e = Math.min(nr.end, maxX);
+        if (e <= s) return;
+        const bx = plotX0 + scaleX(s);
+        const bw = Math.max(4, scaleX(e) - scaleX(s));
+        target.appendChild(el("rect", live
+          ? { class: "n-gap", x: bx, y: rowY + 2, width: bw, height: rowH - 4 }
+          : { x: bx, y: rowY + 2, width: bw, height: rowH - 4, fill: resolve("var(--n-gap)") }));
+      });
 
       genesInWindow(r).forEach(g => {
         const x1 = plotX0 + scaleX(g.start), x2 = plotX0 + scaleX(g.end);
@@ -1029,7 +1117,7 @@ function renderChart(data) {
     "--other-fill","--other-stroke","--rfe-other-fill","--rfe-other-stroke",
     "--marker-same-border","--marker-refound-border",
     "--anchor-fill","--anchor-stroke","--text-primary","--text-secondary","--text-muted",
-    "--section-bg","--seq-line","--surface-1",
+    "--section-bg","--seq-line","--n-gap","--surface-1",
   ];
   function bakeLightVars() {
     const root = document.documentElement;
@@ -1063,23 +1151,31 @@ function renderChart(data) {
     return { node: g, height: 40 };
   }
 
-  function buildLegendGroup(resolve, maxWidth, presentCats, nCols) {
+  function buildLegendGroup(resolve, maxWidth, presentCats, nCols, showGutter) {
     const g = el("g", {});
     // Column grid so items line up in neat columns (mirrors the live HTML
     // legend); placement is row-major by call order. Print uses fewer columns
     // (wider cells) so the long feature names don't overlap.
     const cols = nCols || 4, rowH = 14, swW = 10, swH = 7, gapSW = 5, padX = 0, padY = 0;
     const colW = (maxWidth - padX * 2) / cols;
-    let idx = 0;
+    let idx = 0, extraY = 0;
     const textFill = resolve("var(--text-secondary)");
     const place = (drawSwatch, text, swWidth) => {
       const col = idx % cols, row = Math.floor(idx / cols);
-      const cx = padX + col * colW, cy = padY + row * rowH;
+      const cx = padX + col * colW, cy = padY + row * rowH + extraY;
       drawSwatch(cx, cy);
       const t = el("text", { x: cx + swWidth + gapSW, y: cy + 7, fill: textFill, "font-size": 9, "font-family": "sans-serif" });
       t.textContent = text;
       g.appendChild(t);
       idx++;
+    };
+    // Finish the current row, draw a full-width rule, and start the next group
+    // on a fresh row below it.
+    const divider = () => {
+      if (idx % cols !== 0) idx = (Math.floor(idx / cols) + 1) * cols;
+      const y = padY + (idx / cols) * rowH + extraY + 4;
+      g.appendChild(el("line", { x1: padX, y1: y, x2: maxWidth - padX, y2: y, stroke: resolve("var(--text-muted)"), "stroke-width": 0.6 }));
+      extraY += 9;
     };
     data.top_rfe_clusters.forEach(c => {
       const label = (data.cluster_labels[c] || c).split(";")[0];
@@ -1094,26 +1190,37 @@ function renderChart(data) {
       g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill: resolve("var(--anchor-fill)") }));
       g.appendChild(el("rect", { x: x - 1.5, y: y - 0.5, width: swW + 3, height: swH + 3, rx: 3, fill: "none", stroke: resolve("var(--anchor-stroke)"), "stroke-width": 1 }));
     }, `anchor gene (${anchorLabel})`, swW);
-    const neutral = resolve("var(--other-fill)"), edge = resolve("var(--text-secondary)");
-    const sameB = resolve("var(--marker-same-border)"), refoundB = resolve("var(--marker-refound-border)");
-    const markerKeys = [
-      ["Quick comparison: present, different contig", { stroke: edge, sw: 1.3 }],
-      ["Quick comparison: present, same contig, outside window", { stroke: sameB, sw: 1.8 }],
-      ["Quick comparison: present via Panaroo \"refound\" only", { stroke: refoundB, sw: 1.8 }],
-    ];
-    markerKeys.forEach(([txt, st]) => {
-      place((x, y) => {
-        const a = { x, y: y, width: 8, height: 8, rx: 2, fill: neutral };
-        if (st.stroke) { a.stroke = st.stroke; a["stroke-width"] = st.sw; }
-        g.appendChild(el("rect", a));
-      }, txt, 8);
-    });
-    // Source-type symbol key (only categories actually present in this export).
-    const symbolPaint = resolve("var(--text-primary)");
-    SOURCE_CATS.filter(([cat]) => !presentCats || presentCats.has(cat)).forEach(([cat, label]) => {
-      place((x, y) => drawSymbol(g, cat, x + 4, y + 4, 2.8, symbolPaint), `source: ${label}`, 8);
-    });
-    return { node: g, height: Math.ceil(idx / cols) * rowH + padY };
+    if (data.n_runs_included) place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill: resolve("var(--n-gap)") })), `assembly gap (run of N, ≥${data.min_n_run || 10}bp)`, swW);
+    // Quick-comparison key -- only when the gutter column is included.
+    if (showGutter !== false) {
+      divider();
+      const neutral = resolve("var(--other-fill)"), edge = resolve("var(--text-secondary)");
+      const sameB = resolve("var(--marker-same-border)"), refoundB = resolve("var(--marker-refound-border)");
+      // Export: drop the repeated "Quick comparison:" prefix (the divided
+      // section already groups these) so the entries fit the narrower key.
+      const markerKeys = [
+        ["present, different contig", { stroke: edge, sw: 1.3 }],
+        ["present, same contig, outside window", { stroke: sameB, sw: 1.8 }],
+        ["present via Panaroo \"refound\" only", { stroke: refoundB, sw: 1.8 }],
+      ];
+      markerKeys.forEach(([txt, st]) => {
+        place((x, y) => {
+          const a = { x, y: y, width: 8, height: 8, rx: 2, fill: neutral };
+          if (st.stroke) { a.stroke = st.stroke; a["stroke-width"] = st.sw; }
+          g.appendChild(el("rect", a));
+        }, txt, 8);
+      });
+    }
+    // Source-type (host) symbol key (only categories present in this export).
+    const cats = SOURCE_CATS.filter(([cat]) => !presentCats || presentCats.has(cat));
+    if (cats.length) {
+      divider();
+      const symbolPaint = resolve("var(--text-primary)");
+      cats.forEach(([cat, label]) => {
+        place((x, y) => drawSymbol(g, cat, x + 4, y + 4, 2.8, symbolPaint), `source: ${label}`, 8);
+      });
+    }
+    return { node: g, height: Math.ceil(idx / cols) * rowH + padY + extraY };
   }
 
   const MM = 3.779528;            // px per mm at 96dpi
@@ -1143,6 +1250,7 @@ function renderChart(data) {
     // Layout params. Screen keeps the native wide layout. Print uses a compact
     // profile: denser (narrower) gene track, trimmed padding, and a window
     // capped per orientation.
+    const showGutter = exportGutter.checked;
     let labelW, plotW, maxGutter, windowBp, pad, markLP;
     if (p) {
       labelW = p.labelW; plotW = p.plotW;
@@ -1153,8 +1261,14 @@ function renderChart(data) {
       labelW = 200; plotW = 1280; maxGutter = nGut;
       windowBp = Number(windowSelect.value);
     }
+    // Quick-comparison (gutter) toggle: when off, reclaim its width for the
+    // gene track and drop its columns + key entries.
+    if (!showGutter) {
+      plotW += (markLP ?? 14) + maxGutter * (9 + 3);
+      maxGutter = 0; markLP = 0;
+    }
     const mlp = markLP ?? 14;
-    const chartW = labelW + plotW + (mlp + maxGutter * (9 + 3)) + 20;
+    const chartW = labelW + plotW + (maxGutter ? mlp + maxGutter * (9 + 3) : 0) + 20;
 
     const out = el("svg", {});
     out.setAttribute("xmlns", NS);
@@ -1164,13 +1278,13 @@ function renderChart(data) {
 
     const presentCats = new Set(exportRows.map(r => sourceCat(r.source_type)));
     const legendTop = margin + title.height + 10;
-    const legend = buildLegendGroup(resolve, chartW, presentCats, p ? p.keyCols : 4);
+    const legend = buildLegendGroup(resolve, chartW, presentCats, p ? p.keyCols : 4, showGutter);
     legend.node.setAttribute("transform", `translate(${margin}, ${legendTop})`);
 
     const tracksTop = legendTop + legend.height + 12;
     const tracksG = el("g", { transform: `translate(${margin}, 0)` });
     out.appendChild(tracksG);
-    const dim = renderTracks(tracksG, { rows: exportRows, extentRows: p ? exportRows : shown, windowBp, live: false, resolve, offsetY: tracksTop, labelW, plotW, maxGutter, pad, markerLeftPad: markLP });
+    const dim = renderTracks(tracksG, { rows: exportRows, extentRows: p ? exportRows : shown, windowBp, live: false, resolve, offsetY: tracksTop, labelW, plotW, maxGutter, pad, markerLeftPad: markLP, sectionHeaderH: 16, sectionGap: 12 });
 
     const canvasW = chartW + margin * 2;
     const canvasH = dim.height + margin;

@@ -145,3 +145,46 @@ one-off inverted flip was never inherited here.
    not version control. If a future change should get finer-grained
    rollback than "restore one of the 3 checkpoints," consider `git init`
    at that point rather than continuing to hand-number backups.
+
+7. **Scaffold-gap (N-run) bands (2026-08-13, user request "scan for scaffolds
+   (runs of NNNN) and flag this on the maps").** Shaded bands mark runs of N —
+   assembly gaps — behind the gene track, per row.
+   - **Opt-in, off by default (2026-08-13 follow-up).** Gaps proved sparse and
+     the FASTA reads add ~2s/build, so the scan is gated behind a "Show N-runs"
+     checkbox. The toggle re-fetches with `&n_runs=1` (server-side cost, so a
+     re-fetch like the genome-count selector, not a client redraw); default
+     builds skip `find_n_runs` entirely. Server returns `n_runs_included`, which
+     gates the band's key entry in both the live and export legends.
+   - **Data was already in hand, unused.** Prokka writes the full scaffold
+     FASTA into the tail of each `.gff` (after `##FASTA`); `parse_gff` `break`s
+     at the first `>`, discarding it. `find_n_runs(stem, contig)`
+     (`pangenome_viewer.py`, right after `parse_gff`) reads that block for
+     **only the anchor's contig** and stops (`break`) once past it.
+   - **Why anchor-contig-only is cheap, empirically:** the anchor contig is
+     almost always contig 0 (Prokka orders largest-first, genes concentrate
+     there); reading even that big contig is buffered sequential I/O + one
+     regex — measured ~4ms/genome, ~2s added to a 500-row build (warm cache;
+     the build's own baseline is ~29s, cold-cache first build ~66s). Reading
+     *all* contigs would be ~64ms/genome (~32s). The saving is real I/O, not
+     just regex.
+   - **`MIN_N_RUN = 10`bp threshold:** ~33% of N-runs in this cohort are 1–9bp
+     single-base ambiguity calls, not gaps. 10bp drops those; every genuine
+     assembly gap survives. Measured gap sizes are **all sub-kb** (max 967bp
+     across 25 genomes) — so N-runs do *not* explain large blank/non-coding
+     stretches on the maps; those are genuine intergenic/unannotated sequence.
+     The threshold is returned as `min_n_run` and shown in the key.
+   - **Coords + clip:** per-row `n_runs` are mapped into the same anchor
+     -relative frame as genes (respecting `flip`) and clipped server-side to
+     the build window. **Client-side the band is clipped to `[minX, maxX]`
+     (the plotted gene-extent domain that `scaleX` maps), NOT to `±windowBp`**
+     — N-runs sit in gene-poor stretches, so a window-clip would place a
+     visible 16px rect outside the plot (into the label column or gutter).
+     The seq-line backbone (973–981) still uses the `±windowBp` clip; it gets
+     away with it because a 1.5px line bleeding out is invisible.
+   - **Theme + export:** `--n-gap` var in all 4 theme blocks, `.n-gap` class,
+     added to `EXPORT_VARS` (baked A4 export) and to *both* keys — the live
+     `#legend` innerHTML and the export's self-drawn `buildLegendGroup` SVG.
+   - Verified against raw ground truth: the 94/82/80bp gaps in
+     `ESC_AA7970AA_AS.scaffold` resolve to the exact positions `find_n_runs`
+     reports; a real build surfaced a conserved 94bp gap ~9.6kb downstream of
+     the anchor in 213/500 genomes (real signal, not noise).

@@ -413,6 +413,47 @@ def parse_gff(stem):
     return genes, seqlens
 
 
+# Runs of N shorter than this are single-base ambiguity calls, not scaffold
+# gaps -- 33% of runs in this cohort are 1-9bp. 10bp filters those out while
+# keeping every genuine assembly gap (observed gaps range ~10bp to ~1kb).
+MIN_N_RUN = 10
+
+
+def find_n_runs(stem, contig, min_len=MIN_N_RUN):
+    """Scaffold-gap N-runs on ONE contig of a genome's assembly.
+
+    The scaffold sequence lives in the ##FASTA block at the tail of the Prokka
+    GFF. We read only the requested contig's sequence and stop -- because the
+    anchor gene almost always sits on the first (largest) contig, this breaks
+    out after a few KB rather than reading the whole ~5.5MB file. Returns a
+    list of (start, end) 1-based inclusive coordinates for each run of >=
+    min_len N's, in contig coordinates."""
+    gff = PROKKA_BASE / stem / f"{stem}.gff"
+    if not gff.exists():
+        return []
+    parts = []
+    in_fasta = False
+    in_target = False
+    with open(gff) as f:
+        for line in f:
+            if not in_fasta:
+                if line.startswith("##FASTA"):
+                    in_fasta = True
+                continue
+            if line.startswith(">"):
+                if in_target:
+                    break  # captured the whole target contig; stop reading
+                in_target = line[1:].split()[0] == contig
+                continue
+            if in_target:
+                parts.append(line.strip())
+    if not parts:
+        return []
+    seq = "".join(parts)
+    return [(m.start() + 1, m.end())
+            for m in re.finditer(r"[Nn]{%d,}" % min_len, seq)]
+
+
 class Context:
     """Everything loaded once at server startup."""
     def __init__(self):
@@ -458,7 +499,7 @@ def load_mge_types_for_cluster(anchor_cluster):
     return types
 
 
-def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT):
+def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=False):
     if anchor_cluster not in ctx.cluster_lookup:
         return {"error": f"cluster {anchor_cluster!r} not found"}
 
@@ -655,6 +696,21 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT):
         else:
             contig_rel_start = contig_rel_end = None
 
+        # Scaffold-gap N-runs on the anchor's contig, mapped into the same
+        # anchor-relative frame as the genes and clipped to the build window.
+        # Off by default -- the FASTA reads add ~2s/build and gaps are sparse,
+        # so this is opt-in via the client's "assembly gaps" checkbox.
+        n_runs_out = []
+        for ns, ne in (find_n_runs(stems[g], contig) if include_n_runs else ()):
+            if ne < win_lo or ns > win_hi:
+                continue
+            if flip:
+                r_start, r_end = anchor_ref - ne, anchor_ref - ns
+            else:
+                r_start, r_end = ns - anchor_ref, ne - anchor_ref
+            n_runs_out.append({"start": r_start, "end": r_end})
+        n_runs_out.sort(key=lambda x: x["start"])
+
         sero, source = sero_for(g)
         meta_row = lookup_meta(g)
         rows_out.append({
@@ -663,6 +719,7 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT):
             "test_score": ctx.test_scores.get(g),
             "contig_rel_start": contig_rel_start, "contig_rel_end": contig_rel_end,
             "genes": genes_out,
+            "n_runs": n_runs_out,
             "_contig": contig,
             "metadata": meta_row["full"] if meta_row else {},
         })
@@ -745,6 +802,8 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT):
         "sero_buckets": buckets_order,
         "top_rfe_clusters": top_rfe_clusters,
         "cluster_labels": cluster_labels,
+        "min_n_run": MIN_N_RUN,
+        "n_runs_included": include_n_runs,
         "max_window_bp": BUILD_WINDOW,
         "default_window_bp": DEFAULT_WINDOW,
         "window_options_bp": WINDOW_OPTIONS_BP,
@@ -753,6 +812,7 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT):
         "requested_count": count,
         "sample_size": sample_size,
         "metadata_columns": ctx.metadata_columns,
+        "metadata_source_col": METADATA_SOURCE_COL,
         "carrier_value_counts": carrier_value_counts,
         "rows": rows_out,
     }
@@ -831,8 +891,9 @@ def make_handler(ctx):
                     except ValueError:
                         self._send_json({"error": f"invalid 'count' param {raw_count!r}"}, status=400)
                         return
-                print(f"[build] anchor={anchor!r} count={count!r}", file=sys.stderr)
-                data = build_chart_data(ctx, anchor, count)
+                include_n_runs = qs.get("n_runs", [""])[0].strip() in ("1", "true", "yes")
+                print(f"[build] anchor={anchor!r} count={count!r} n_runs={include_n_runs}", file=sys.stderr)
+                data = build_chart_data(ctx, anchor, count, include_n_runs=include_n_runs)
                 if "error" in data:
                     self._send_json(data, status=404)
                     return
