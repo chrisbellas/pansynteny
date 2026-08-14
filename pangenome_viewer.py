@@ -266,15 +266,26 @@ def build_genome_stem_map():
 
 
 def load_rfe_importance():
-    """feature (Panaroo cluster name, possibly '~~~'-merged) -> importance
-    str. Empty if RFE_FEATURES_TXT wasn't supplied -- RFE-based coloring
-    just turns itself off, everything renders as a plain neutral gene."""
+    """feature (Panaroo cluster name, possibly '~~~'-merged) -> {"importance":
+    str, "annotation": str}. Empty if RFE_FEATURES_TXT wasn't supplied --
+    RFE-based coloring just turns itself off, everything renders as a plain
+    neutral gene. "annotation" comes from an optional 'Annotation' column
+    (a curated short name, e.g. "nleC") that -- when present for a given
+    feature -- supersedes the Prokka annotation in the legend key, tooltip,
+    and search results. Both "importance" and "annotation" degrade
+    independently and silently to "" when their column is missing from the
+    file or blank on a given row, so older two-column RFE files (just
+    'feature'/'importance') keep working exactly as before, falling back to
+    the Prokka annotation everywhere."""
     if RFE_FEATURES_TXT is None:
         return {}
     out = {}
     with open(RFE_FEATURES_TXT, newline="") as f:
         for row in csv.DictReader(f, delimiter="\t"):
-            out[row["feature"]] = row["importance"]
+            out[row["feature"]] = {
+                "importance": (row.get("importance") or "").strip(),
+                "annotation": (row.get("Annotation") or "").strip(),
+            }
     return out
 
 
@@ -290,13 +301,15 @@ def build_search_index(rfe_importance):
         for row in r:
             cluster = row[0]
             carrier_count = sum(1 for cell in row[3:] if cell.strip())
+            rfe_info = rfe_importance.get(cluster) or {}
             index.append({
                 "cluster": cluster,
                 "non_unique_name": row[1],
                 "annotation": row[2],
                 "carrier_count": carrier_count,
                 "is_rfe": cluster in rfe_importance,
-                "rfe_importance": rfe_importance.get(cluster),
+                "rfe_importance": rfe_info.get("importance") or None,
+                "rfe_annotation": rfe_info.get("annotation") or None,
                 "_haystack": f"{cluster} {row[1]} {row[2]}".lower(),
             })
     print(f"[startup] indexed {len(index)} pangenome clusters across "
@@ -383,14 +396,25 @@ def load_test_scores():
     return scores
 
 
+# Non-CDS feature types Prokka emits that are worth showing as a separate map
+# layer -- structural/non-coding RNAs and repeats that otherwise render as
+# blank track (the main gene layer draws CDS only). "gene" is skipped: it is
+# the parent wrapper Prokka pairs with each CDS/tRNA/rRNA, not a feature.
+NON_CDS_TYPES = {"tRNA", "rRNA", "tmRNA", "ncRNA", "misc_RNA", "repeat_region", "CRISPR"}
+
+
 def parse_gff(stem):
-    """Returns (genes, seqlens). genes: locus_tag -> (contig, start, end,
-    strand, product). seqlens: contig -> length (from ##sequence-region)."""
+    """Returns (genes, seqlens, non_cds). genes: locus_tag -> (contig, start,
+    end, strand, product). seqlens: contig -> length (from ##sequence-region).
+    non_cds: list of (contig, start, end, strand, ftype, label) for the
+    non-coding / repeat features in NON_CDS_TYPES -- read from the same pass
+    that already scans every annotation line, so it costs no extra I/O."""
     genes = {}
     seqlens = {}
+    non_cds = []
     gff = PROKKA_BASE / stem / f"{stem}.gff"
     if not gff.exists():
-        return genes, seqlens
+        return genes, seqlens, non_cds
     with open(gff) as f:
         for line in f:
             if line.startswith(">"):
@@ -402,15 +426,25 @@ def parse_gff(stem):
             if line.startswith("#"):
                 continue
             fields = line.rstrip("\n").split("\t")
-            if len(fields) < 9 or fields[2] != "CDS":
+            if len(fields) < 9:
                 continue
-            m = re.search(r"locus_tag=([^;]+)", fields[8])
-            if not m:
-                continue
-            pm = re.search(r"product=([^;]+)", fields[8])
-            product = urllib.parse.unquote(pm.group(1)) if pm else "hypothetical protein"
-            genes[m.group(1)] = (fields[0], int(fields[3]), int(fields[4]), fields[6], product)
-    return genes, seqlens
+            ftype = fields[2]
+            if ftype == "CDS":
+                m = re.search(r"locus_tag=([^;]+)", fields[8])
+                if not m:
+                    continue
+                pm = re.search(r"product=([^;]+)", fields[8])
+                product = urllib.parse.unquote(pm.group(1)) if pm else "hypothetical protein"
+                genes[m.group(1)] = (fields[0], int(fields[3]), int(fields[4]), fields[6], product)
+            elif ftype in NON_CDS_TYPES:
+                pm = re.search(r"product=([^;]+)", fields[8])
+                if pm:
+                    label = urllib.parse.unquote(pm.group(1))
+                else:
+                    nm = re.search(r"(?:note|rpt_family|Name)=([^;]+)", fields[8])
+                    label = urllib.parse.unquote(nm.group(1)) if nm else ftype
+                non_cds.append((fields[0], int(fields[3]), int(fields[4]), fields[6], ftype, label))
+    return genes, seqlens, non_cds
 
 
 # Runs of N shorter than this are single-base ambiguity calls, not scaffold
@@ -577,8 +611,9 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
 
     stems = {g: ctx.genome_stem_map[g] for g in sample_genome_ids}
     gff_parsed = {g: parse_gff(stem) for g, stem in stems.items()}
-    gff_genes = {g: genes for g, (genes, _) in gff_parsed.items()}
-    gff_seqlens = {g: seqlens for g, (_, seqlens) in gff_parsed.items()}
+    gff_genes = {g: genes for g, (genes, _s, _n) in gff_parsed.items()}
+    gff_seqlens = {g: seqlens for g, (_g, seqlens, _n) in gff_parsed.items()}
+    gff_noncds = {g: non_cds for g, (_g, _s, non_cds) in gff_parsed.items()}
 
     def pick_locus(g):
         loci = present[g]
@@ -682,6 +717,7 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
                 "is_anchor": glt == lt,
                 "is_rfe": is_rfe,
                 "rfe_importance": None,
+                "rfe_annotation": None,
             })
         genes_out.sort(key=lambda x: x["start"])
 
@@ -711,6 +747,26 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
             n_runs_out.append({"start": r_start, "end": r_end})
         n_runs_out.sort(key=lambda x: x["start"])
 
+        # Non-CDS features (rRNA/tRNA/repeat) on the anchor contig, in-window,
+        # in the same anchor-relative frame as genes. Always included (nearly
+        # free -- already parsed); the client toggles their visibility.
+        non_cds_out = []
+        for nc_contig, nc_start, nc_end, nc_strand, nc_ftype, nc_label in gff_noncds.get(g, []):
+            if nc_contig != contig:
+                continue
+            if nc_end < win_lo or nc_start > win_hi:
+                continue
+            if flip:
+                nc_rel_start, nc_rel_end = anchor_ref - nc_end, anchor_ref - nc_start
+                nc_disp_strand = "-" if nc_strand == "+" else "+"
+            else:
+                nc_rel_start, nc_rel_end = nc_start - anchor_ref, nc_end - anchor_ref
+                nc_disp_strand = nc_strand
+            non_cds_out.append({"start": nc_rel_start, "end": nc_rel_end,
+                                "strand": nc_disp_strand, "ftype": nc_ftype,
+                                "label": nc_label})
+        non_cds_out.sort(key=lambda x: x["start"])
+
         sero, source = sero_for(g)
         meta_row = lookup_meta(g)
         rows_out.append({
@@ -720,6 +776,7 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
             "contig_rel_start": contig_rel_start, "contig_rel_end": contig_rel_end,
             "genes": genes_out,
             "n_runs": n_runs_out,
+            "non_cds": non_cds_out,
             "_contig": contig,
             "metadata": meta_row["full"] if meta_row else {},
         })
@@ -727,18 +784,26 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
     for row in rows_out:
         for gobj in row["genes"]:
             if gobj["is_rfe"]:
-                gobj["rfe_importance"] = ctx.rfe_importance.get(gobj["cluster"])
+                info = ctx.rfe_importance.get(gobj["cluster"]) or {}
+                gobj["rfe_importance"] = info.get("importance") or None
+                gobj["rfe_annotation"] = info.get("annotation") or None
 
     buckets_order = top_seros + (["Other"] if any(r["sero_bucket"] == "Other" for r in rows_out) else [])
     bucket_rank = {b: i for i, b in enumerate(buckets_order)}
     rows_out.sort(key=lambda r: (bucket_rank.get(r["sero_bucket"], 99), r["genome_id"]))
 
     top_rfe_clusters = [c for c, _ in rfe_cluster_counts.most_common(TOP_N_COLORED)]
+    # Legend-key label per cluster: the curated RFE 'Annotation' (e.g. "nleC")
+    # when the RFE features file supplies one for this cluster, else the
+    # Prokka annotation as before -- the same fallback used in the tooltip
+    # and search results below.
     cluster_labels = {}
     for row in rows_out:
         for gobj in row["genes"]:
-            if gobj["cluster"] in top_rfe_clusters and gobj["cluster"] not in cluster_labels:
-                cluster_labels[gobj["cluster"]] = gobj["product"]
+            c = gobj["cluster"]
+            if c in top_rfe_clusters and c not in cluster_labels:
+                rfe_ann = (ctx.rfe_importance.get(c) or {}).get("annotation")
+                cluster_labels[c] = rfe_ann if rfe_ann else gobj["product"]
 
     # Per-row status marker for each of the tracked genes, whether or not
     # it's drawn in this row's window -- lets the client render one

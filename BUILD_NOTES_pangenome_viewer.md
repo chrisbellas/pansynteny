@@ -188,3 +188,31 @@ one-off inverted flip was never inherited here.
      `ESC_AA7970AA_AS.scaffold` resolve to the exact positions `find_n_runs`
      reports; a real build surfaced a conserved 94bp gap ~9.6kb downstream of
      the anchor in 213/500 genomes (real signal, not noise).
+
+8. **Non-CDS feature layer (2026-08-13, user follow-up "add the non-CDS layer
+   as an opt-in toggle").** The main track draws `CDS` only, so rRNA/tRNA/
+   tmRNA/`repeat_region` that Prokka *did* annotate render as blank — which is
+   what a lot of the "large gaps" actually are (a ribosomal RNA operon is
+   ~5kb). This layer draws them.
+   - **Nearly free, so the toggle is client-side (unlike N-runs).** `parse_gff`
+     already iterates every annotation line and `continue`s past non-CDS;
+     capturing them (`NON_CDS_TYPES`, returned as the 3rd tuple element) costs
+     no extra I/O. So `non_cds` is *always* in the payload and the "Show
+     rRNA/tRNA" checkbox is a pure `draw()` redraw — no re-fetch.
+   - **Extent, not clip.** Non-CDS features sit in gene-poor stretches, so when
+     the toggle is on they must *push out* `minX/maxX` (the extent loop folds
+     in `nonCdsInWindow`), otherwise an rRNA operon in a blank region would be
+     squished to the plot edge. This is the opposite choice from N-run bands,
+     which clip to the gene extent — deliberately: a gap is metadata about
+     existing sequence, a non-CDS feature is a thing to position in its own
+     right.
+   - Rendered as low-profile colored rects (thinner than CDS arrows, drawn
+     under them), coloured by type via `NC_COLOR` -> `--nc-rrna`/`--nc-trna`/
+     `--nc-repeat` (RNA genes share the tRNA hue; repeats their own). Vars in
+     all 4 theme blocks, in `EXPORT_VARS`, and keyed in both legends (gated on
+     the toggle). Hover tooltip shows the product (e.g. `tRNA-Leu(caa)`,
+     `23S ribosomal RNA`).
+   - **Demo anchor:** `group_5150` (`yhdZ`, flanks an rrn operon) shows an
+     rRNA feature in 484/500 rows — a full 5S/23S/16S operon ~1–6kb from the
+     anchor. `eae`/`group_4851` (LEE region) shows only scattered tRNAs, no
+     rRNA — a reminder the layer reflects real local genome context.

@@ -24,6 +24,7 @@
   --section-bg: #f2f1ec;
   --seq-line: rgba(11,11,11,0.28);
   --n-gap: rgba(30,110,240,0.55);
+  --nc-rrna: #7c3aed; --nc-trna: #0d9488; --nc-repeat: #78716c;
   --accent: #2a78d6;
 }
 @media (prefers-color-scheme: dark) {
@@ -43,6 +44,7 @@
     --section-bg: #202020;
     --seq-line: rgba(255,255,255,0.55);
     --n-gap: rgba(90,170,255,0.60);
+    --nc-rrna: #a78bfa; --nc-trna: #2dd4bf; --nc-repeat: #a8a29e;
     --accent: #3987e5;
   }
 }
@@ -62,6 +64,7 @@
   --section-bg: #202020;
   --seq-line: rgba(255,255,255,0.55);
   --n-gap: rgba(90,170,255,0.60);
+  --nc-rrna: #a78bfa; --nc-trna: #2dd4bf; --nc-repeat: #a8a29e;
   --accent: #3987e5;
 }
 :root[data-theme="light"] {
@@ -79,6 +82,7 @@
   --section-bg: #f2f1ec;
   --seq-line: rgba(11,11,11,0.28);
   --n-gap: rgba(30,110,240,0.55);
+  --nc-rrna: #7c3aed; --nc-trna: #0d9488; --nc-repeat: #78716c;
   --accent: #2a78d6;
 }
 * { box-sizing: border-box; }
@@ -195,6 +199,7 @@ svg { display: block; }
 .axis-line { stroke: var(--baseline); stroke-width: 1; }
 .seq-line { stroke: var(--seq-line); stroke-width: 1.5; }
 .n-gap { fill: var(--n-gap); stroke: none; }
+.non-cds { stroke: none; cursor: default; }
 .anchor-line { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 3; }
 
 .gene-arrow { stroke-width: 0.75; cursor: pointer; }
@@ -268,6 +273,14 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <label class="export-toggle"><input type="checkbox" id="ngap-toggle"> Show N-runs (slower)</label>
         </div>
         <div class="window-control">
+          <label>Non-CDS features</label>
+          <label class="export-toggle"><input type="checkbox" id="noncds-toggle"> Show rRNA/tRNA</label>
+        </div>
+        <div class="window-control">
+          <label for="strain-order-select">Order key by strain</label>
+          <select id="strain-order-select"><option value="">(default: by carrier count)</option></select>
+        </div>
+        <div class="window-control">
           <label for="palette-select">Palette</label>
           <select id="palette-select"></select>
         </div>
@@ -334,7 +347,15 @@ const svg = document.getElementById("chart");
 const tooltip = document.getElementById("tooltip");
 const windowSelect = document.getElementById("window-select");
 const countSelect = document.getElementById("count-select");
+const strainOrderSelect = document.getElementById("strain-order-select");
 const nGapToggle = document.getElementById("ngap-toggle");
+const nonCdsToggle = document.getElementById("noncds-toggle");
+// Non-CDS feature type -> fill var. RNA genes share one hue; repeats another.
+const NC_COLOR = {
+  rRNA: "var(--nc-rrna)",
+  tRNA: "var(--nc-trna)", tmRNA: "var(--nc-trna)", ncRNA: "var(--nc-trna)", misc_RNA: "var(--nc-trna)",
+  repeat_region: "var(--nc-repeat)", CRISPR: "var(--nc-repeat)",
+};
 // N-runs are computed server-side (opt-in, ~2s), so toggling re-fetches the
 // chart -- same pattern as the genome-count selector, not a client-side redraw.
 nGapToggle.onchange = () => {
@@ -510,11 +531,17 @@ function renderSearchResults(matches) {
   searchResults.innerHTML = matches.map(m => {
     const names = (m.non_unique_name || "").split(";").filter(Boolean).join(", ");
     const ann = (m.annotation || "").split(";").filter(Boolean)[0] || "";
-    const rfeBadge = m.is_rfe
-      ? `<span class="rfe-badge">RFE${m.rfe_importance ? " " + Number(m.rfe_importance).toFixed(4) : ""}</span>`
-      : "";
+    const rfeBadge = m.is_rfe ? `<span class="rfe-badge">RFE</span>` : "";
+    // Top line: cluster — importance — curated Annotation, when the RFE
+    // features file supplies either for this cluster; otherwise just the
+    // cluster name (as before), and the Prokka annotation on its own line
+    // below covers it. (Importance already lives here, so it's dropped
+    // from the RFE badge to avoid showing it twice.)
+    const topBits = [escapeHtml(m.cluster)];
+    if (m.rfe_importance) topBits.push(Number(m.rfe_importance).toFixed(4));
+    if (m.rfe_annotation) topBits.push(escapeHtml(m.rfe_annotation));
     return `<div class="search-result" data-cluster="${escapeHtml(m.cluster)}">
-      <div class="sr-top"><span class="sr-cluster">${escapeHtml(m.cluster)}</span>${rfeBadge}</div>
+      <div class="sr-top"><span class="sr-cluster">${topBits.join(" — ")}</span>${rfeBadge}</div>
       <div class="sr-sub">${escapeHtml(names ? names + " — " : "")}${escapeHtml(ann)} · ${m.carrier_count} genomes</div>
     </div>`;
   }).join("");
@@ -633,6 +660,9 @@ function renderChart(data) {
   pendingWindowBp = null;
   windowSelect.value = String(defaultWindow);
   windowSelect.onchange = () => draw(Number(windowSelect.value));
+  // Non-CDS data is always in the payload (cheap to include), so its toggle is
+  // a pure client-side redraw -- no re-fetch, unlike the N-runs toggle.
+  nonCdsToggle.onchange = () => draw(Number(windowSelect.value));
 
   // ---- genome-count dropdown: changing this re-fetches from the server ----
   countSelect.innerHTML = "";
@@ -769,8 +799,20 @@ function renderChart(data) {
   populateLabelColumnOptions();
 
   // ---- legend (fixed regardless of window) ----
+  // data.top_rfe_clusters starts in the server's default order (by
+  // genome-wide carrier count); "Order key by strain" below can reorder it
+  // (and, with it, the color assignment -- clusterColor is keyed by
+  // position in this array) to match one chosen genome's left-to-right gene
+  // order. originalTopRfeClusters is a frozen copy of the default order, so
+  // switching strains (or picking "default" again) is always computed from
+  // the same baseline rather than compounding onto a previous reorder.
+  const originalTopRfeClusters = data.top_rfe_clusters.slice();
   const clusterColor = {};
-  data.top_rfe_clusters.forEach((c, i) => { clusterColor[c] = `var(--${S_COLORS[i]})`; });
+  function rebuildClusterColor() {
+    Object.keys(clusterColor).forEach(k => delete clusterColor[k]);
+    data.top_rfe_clusters.forEach((c, i) => { clusterColor[c] = `var(--${S_COLORS[i]})`; });
+  }
+  rebuildClusterColor();
 
   // ---- per-row selection (for SVG export) ----
   // Persists across window/filter redraws on this chart; reset per new anchor
@@ -785,32 +827,106 @@ function renderChart(data) {
   updateExportControls();
 
   const legend = document.getElementById("legend");
-  const items = [];
-  data.top_rfe_clusters.forEach(c => {
-    const label = (data.cluster_labels[c] || c).split(";")[0];
-    items.push(`<div class="legend-item" data-cluster="${escapeHtml(c)}"><div class="swatch" style="background:${clusterColor[c]}"></div>${escapeHtml(c)} — ${escapeHtml(label.slice(0,38))}</div>`);
-  });
-  items.push(`<div class="legend-item"><div class="swatch" style="background:var(--rfe-other-fill)"></div>other RFE feature</div>`);
-  items.push(`<div class="legend-item"><div class="swatch anchor-swatch" style="background:var(--anchor-fill)"></div>anchor gene (${escapeHtml(anchorLabel)})</div>`);
-  if (data.n_runs_included) items.push(`<div class="legend-item"><div class="swatch" style="background:var(--n-gap)"></div>assembly gap (run of N, &ge;${data.min_n_run || 10}bp)</div>`);
-  items.push(`<div class="legend-sep"></div>`);
-  items.push(`<div class="legend-item"><div class="marker-swatch state-diff"></div>Quick comparison: present, different contig</div>`);
-  items.push(`<div class="legend-item"><div class="marker-swatch state-same"></div>Quick comparison: present, same contig, outside window</div>`);
-  items.push(`<div class="legend-item"><div class="marker-swatch state-refound"></div>Quick comparison: present via Panaroo "refound" only</div>`);
-  legend.innerHTML = items.join("");
-  legend.querySelectorAll("[data-cluster]").forEach(node => {
-    node.addEventListener("click", () => {
-      const cl = node.dataset.cluster;
-      applyPin(pinnedCluster === cl ? null : cl);
+  function buildLegend() {
+    const items = [];
+    data.top_rfe_clusters.forEach(c => {
+      const label = (data.cluster_labels[c] || c).split(";")[0];
+      items.push(`<div class="legend-item" data-cluster="${escapeHtml(c)}"><div class="swatch" style="background:${clusterColor[c]}"></div>${escapeHtml(c)} — ${escapeHtml(label.slice(0,38))}</div>`);
     });
+    items.push(`<div class="legend-item"><div class="swatch" style="background:var(--rfe-other-fill)"></div>other RFE feature</div>`);
+    items.push(`<div class="legend-item"><div class="swatch anchor-swatch" style="background:var(--anchor-fill)"></div>anchor gene (${escapeHtml(anchorLabel)})</div>`);
+    if (data.n_runs_included) items.push(`<div class="legend-item"><div class="swatch" style="background:var(--n-gap)"></div>assembly gap (run of N, &ge;${data.min_n_run || 10}bp)</div>`);
+    if (nonCdsToggle.checked) {
+      items.push(`<div class="legend-item"><div class="swatch" style="background:var(--nc-rrna)"></div>rRNA (non-CDS)</div>`);
+      items.push(`<div class="legend-item"><div class="swatch" style="background:var(--nc-trna)"></div>tRNA / other ncRNA</div>`);
+      items.push(`<div class="legend-item"><div class="swatch" style="background:var(--nc-repeat)"></div>repeat region</div>`);
+    }
+    items.push(`<div class="legend-sep"></div>`);
+    items.push(`<div class="legend-item"><div class="marker-swatch state-diff"></div>Quick comparison: present, different contig</div>`);
+    items.push(`<div class="legend-item"><div class="marker-swatch state-same"></div>Quick comparison: present, same contig, outside window</div>`);
+    items.push(`<div class="legend-item"><div class="marker-swatch state-refound"></div>Quick comparison: present via Panaroo "refound" only</div>`);
+    legend.innerHTML = items.join("");
+    legend.querySelectorAll("[data-cluster]").forEach(node => {
+      node.addEventListener("click", () => {
+        const cl = node.dataset.cluster;
+        applyPin(pinnedCluster === cl ? null : cl);
+      });
+    });
+  }
+  buildLegend();
+
+  // ---- "Order key by strain" ----
+  // Picking a genome reorders (and recolors) the top-N RFE clusters to
+  // match that genome's left-to-right gene order around the anchor, using
+  // its full +/-max-window gene set (_allGenes) so the order doesn't
+  // change with the window toggle. Clusters absent from the chosen genome
+  // are appended at the end, in the original default (carrier-count)
+  // order. Picking "(default)" restores that original order.
+  strainOrderSelect.innerHTML = "";
+  const defaultOpt = document.createElement("option");
+  defaultOpt.value = "";
+  defaultOpt.textContent = "(default: by carrier count)";
+  strainOrderSelect.appendChild(defaultOpt);
+  rows.forEach(r => {
+    const opt = document.createElement("option");
+    opt.value = r.genome_id;
+    const bits = [r.genome_id, r.serotype, r.source_type].filter(Boolean);
+    opt.textContent = bits.join("  ·  ");
+    strainOrderSelect.appendChild(opt);
   });
+  strainOrderSelect.value = "";
+  strainOrderSelect.onchange = () => {
+    const genomeId = strainOrderSelect.value;
+    let newOrder;
+    if (!genomeId) {
+      newOrder = originalTopRfeClusters.slice();
+    } else {
+      const row = rows.find(r => r.genome_id === genomeId);
+      const inTopSet = new Set(originalTopRfeClusters);
+      const seen = new Set();
+      const present = [];
+      ((row && row._allGenes) || [])
+        .filter(g => inTopSet.has(g.cluster))
+        .sort((a, b) => a.start - b.start)
+        .forEach(g => {
+          if (!seen.has(g.cluster)) { seen.add(g.cluster); present.push(g.cluster); }
+        });
+      const rest = originalTopRfeClusters.filter(c => !seen.has(c));
+      newOrder = present.concat(rest);
+    }
+    data.top_rfe_clusters = newOrder;
+    rebuildClusterColor();
+    buildLegend();
+    draw(Number(windowSelect.value));
+  };
 
   function showTooltip(ev, g) {
     const kind = g.is_anchor ? "anchor gene" : g.is_rfe ? "RFE feature" : "not RFE-flagged";
+    // Top line: cluster — importance — curated Annotation, when the RFE
+    // features file supplies either for this cluster; the Prokka
+    // annotation drops to the line below it. Neither present (not an RFE
+    // feature, or an RFE file without an Annotation column) -- collapses
+    // back to just the Prokka annotation on its own line, as before.
+    const hasRfeData = g.rfe_importance || g.rfe_annotation;
+    const titleBits = [escapeHtml(g.cluster)];
+    if (g.rfe_importance) titleBits.push(Number(g.rfe_importance).toFixed(4));
+    if (g.rfe_annotation) titleBits.push(escapeHtml(g.rfe_annotation));
     tooltip.innerHTML =
-      `<div class="tt-title">${escapeHtml(g.product)}</div>` +
-      `<div class="tt-row">${escapeHtml(g.cluster)} · ${kind}${g.rfe_importance ? " · importance " + Number(g.rfe_importance).toFixed(4) : ""}</div>` +
+      (hasRfeData
+        ? `<div class="tt-title">${titleBits.join(" — ")}</div>` +
+          `<div class="tt-row">${escapeHtml(g.product)}</div>` +
+          `<div class="tt-row">${kind}</div>`
+        : `<div class="tt-title">${escapeHtml(g.product)}</div>` +
+          `<div class="tt-row">${escapeHtml(g.cluster)} · ${kind}</div>`) +
       `<div class="tt-row">strand ${g.strand} · ${g.start} to ${g.end} (rel. to anchor)</div>`;
+    tooltip.style.display = "block";
+    positionTooltip(ev);
+  }
+  function showNonCdsTooltip(ev, f) {
+    tooltip.innerHTML =
+      `<div class="tt-title">${escapeHtml(f.label)}</div>` +
+      `<div class="tt-row">${escapeHtml(f.ftype)} · non-coding (not a CDS)</div>` +
+      `<div class="tt-row">strand ${f.strand} · ${f.start} to ${f.end} (rel. to anchor)</div>`;
     tooltip.style.display = "block";
     positionTooltip(ev);
   }
@@ -893,9 +1009,18 @@ function renderChart(data) {
     // over the same `rows` without clobbering each other's coordinates).
     const genesInWindow = r =>
       (r._allGenes || r.genes).filter(g => g.end >= -windowBp && g.start <= windowBp);
+    // Non-CDS features live in gene-poor stretches, so they must be able to
+    // push out minX/maxX -- otherwise an rRNA operon in a blank region would
+    // be squished to the plot edge. Only when the toggle is on.
+    const nonCdsInWindow = r => nonCdsToggle.checked
+      ? (r.non_cds || []).filter(f => f.end >= -windowBp && f.start <= windowBp)
+      : [];
 
     let minX = Infinity, maxX = -Infinity;
-    extentRows.forEach(r => genesInWindow(r).forEach(g => { minX = Math.min(minX, g.start); maxX = Math.max(maxX, g.end); }));
+    extentRows.forEach(r => {
+      genesInWindow(r).forEach(g => { minX = Math.min(minX, g.start); maxX = Math.max(maxX, g.end); });
+      nonCdsInWindow(r).forEach(f => { minX = Math.min(minX, f.start); maxX = Math.max(maxX, f.end); });
+    });
     if (!isFinite(minX)) { minX = -windowBp; maxX = windowBp; }
     minX -= pad; maxX += pad;
     const scaleX = x => (x - minX) / (maxX - minX) * plotW;
@@ -1014,6 +1139,29 @@ function renderChart(data) {
           : { x: bx, y: rowY + 2, width: bw, height: rowH - 4, fill: resolve("var(--n-gap)") }));
       });
 
+      // Non-CDS features (rRNA/tRNA/tmRNA/repeat) -- a low-profile colored
+      // layer, thinner than the CDS arrows, drawn under them.
+      nonCdsInWindow(r).forEach(f => {
+        const s = Math.max(f.start, minX), e = Math.min(f.end, maxX);
+        if (e <= s) return;
+        const nx = plotX0 + scaleX(s);
+        const nw = Math.max(2.5, scaleX(e) - scaleX(s));
+        const nh = rowH * 0.42;
+        const nyTop = rowY + (rowH - nh) / 2;
+        const ncColor = NC_COLOR[f.ftype] || "var(--nc-repeat)";
+        let ncRect;
+        if (live) {
+          ncRect = el("rect", { class: "non-cds", x: nx, y: nyTop, width: nw, height: nh, rx: 1.5 });
+          ncRect.setAttribute("style", `fill:${ncColor}`);
+          ncRect.addEventListener("mouseenter", (ev) => showNonCdsTooltip(ev, f));
+          ncRect.addEventListener("mousemove", (ev) => positionTooltip(ev));
+          ncRect.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+        } else {
+          ncRect = el("rect", { x: nx, y: nyTop, width: nw, height: nh, rx: 1.5, fill: resolve(ncColor) });
+        }
+        target.appendChild(ncRect);
+      });
+
       genesInWindow(r).forEach(g => {
         const x1 = plotX0 + scaleX(g.start), x2 = plotX0 + scaleX(g.end);
         const w = Math.max(1.4, x2 - x1);
@@ -1117,7 +1265,7 @@ function renderChart(data) {
     "--other-fill","--other-stroke","--rfe-other-fill","--rfe-other-stroke",
     "--marker-same-border","--marker-refound-border",
     "--anchor-fill","--anchor-stroke","--text-primary","--text-secondary","--text-muted",
-    "--section-bg","--seq-line","--n-gap","--surface-1",
+    "--section-bg","--seq-line","--n-gap","--nc-rrna","--nc-trna","--nc-repeat","--surface-1",
   ];
   function bakeLightVars() {
     const root = document.documentElement;
@@ -1191,6 +1339,12 @@ function renderChart(data) {
       g.appendChild(el("rect", { x: x - 1.5, y: y - 0.5, width: swW + 3, height: swH + 3, rx: 3, fill: "none", stroke: resolve("var(--anchor-stroke)"), "stroke-width": 1 }));
     }, `anchor gene (${anchorLabel})`, swW);
     if (data.n_runs_included) place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill: resolve("var(--n-gap)") })), `assembly gap (run of N, ≥${data.min_n_run || 10}bp)`, swW);
+    if (nonCdsToggle.checked) {
+      [["rRNA (non-CDS)", "var(--nc-rrna)"], ["tRNA / other ncRNA", "var(--nc-trna)"], ["repeat region", "var(--nc-repeat)"]].forEach(([txt, v]) => {
+        const fill = resolve(v);
+        place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill })), txt, swW);
+      });
+    }
     // Quick-comparison key -- only when the gutter column is included.
     if (showGutter !== false) {
       divider();

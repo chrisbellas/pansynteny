@@ -127,7 +127,7 @@ def get_gene_detail(genome_id, locus_tag):
     """(contig, start, end, strand, product) for one locus tag, or None if
     it's a refound placeholder / otherwise has no GFF entry."""
     stem = resolve_stem(genome_id)
-    genes, _seqlens = pv.parse_gff(stem)
+    genes, _seqlens, _noncds = pv.parse_gff(stem)
     return genes.get(locus_tag)
 
 
