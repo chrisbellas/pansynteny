@@ -163,7 +163,11 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
   font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
   background: var(--surface-1); color: var(--text-primary); cursor: pointer;
 }
-.export-control { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); white-space: nowrap; }
+.export-control {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); white-space: nowrap;
+  border-left: 1px solid var(--border); padding-left: 16px; margin-left: 4px;
+}
+.export-group-label { font-weight: 600; color: var(--text-primary); margin-right: 2px; }
 .export-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .export-btn {
   font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 6px;
@@ -290,6 +294,7 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <select id="label-col-2"></select>
         </div>
         <div class="export-control">
+          <span class="export-group-label">Export settings</span>
           <label for="export-format">Page</label>
           <select id="export-format">
             <option value="screen">Screen (native)</option>
@@ -502,13 +507,16 @@ function drawSymbol(parent, cat, cx, cy, r, paint) {
     default:            add("path", { d: `M${cx - r},${cy - r} L${cx + r},${cy + r} M${cx - r},${cy + r} L${cx + r},${cy - r}`, stroke: paint, "stroke-width": sw, "stroke-linecap": "round", fill: "none" }); break;
   }
 }
-// Live row label: strain name + up to two selected metadata columns (the "Row
-// labels" selectors). Test score is only appended when SHOW_TEST_SCORE is true.
-function rowLabelText(r) {
+// Row label: strain name + up to two selected metadata columns (the "Row
+// labels" selectors). Test score is only appended when SHOW_TEST_SCORE is
+// true. `skipCol`, used by the SVG export, omits one selected column from
+// the text -- the export draws the source-type column as the symbol it
+// already uses in the key instead of printing it a second time as text.
+function rowLabelText(r, skipCol) {
   let s = r.genome_id;
   labelColSelects.forEach(sel => {
     const col = sel.value;
-    if (!col) return;
+    if (!col || col === skipCol) return;
     const v = col === LABEL_MGE ? r.mge_type : (r.metadata ? r.metadata[col] : "");
     if (v) s += "  " + v;
   });
@@ -1130,12 +1138,14 @@ function renderChart(data) {
         label.textContent = rowLabelText(r);
         target.appendChild(label);
       } else {
-        // Export: source type as a symbol (see key), genomad prediction + test
-        // score dropped to save space.
+        // Export: source type stays the symbol already used in the key
+        // (never printed as text, even if it's one of the selected "Row
+        // labels" columns); any other selected column prints as text after
+        // the strain name, same selection as the live view.
         const sy = rowY + rowH / 2;
         drawSymbol(target, sourceCat(r.source_type), labelX + 4, sy, 3.5, resolve("var(--text-primary)"));
         const label = el("text", { x: labelX + 13, y: sy + 3, fill: resolve("var(--text-primary)"), "font-size": 10, "font-family": "monospace" });
-        label.textContent = r.genome_id;
+        label.textContent = rowLabelText(r, data.metadata_source_col);
         target.appendChild(label);
       }
 
@@ -1324,16 +1334,18 @@ function renderChart(data) {
     return { node: g, height: 40 };
   }
 
-  function buildLegendGroup(resolve, maxWidth, presentCats, nCols, showGutter) {
+  function buildLegendGroup(resolve, maxWidth, presentCats, nCols, showGutter, colWidth) {
     const g = el("g", {});
     // Column grid so items line up in neat columns (mirrors the live HTML
     // legend); `place()` itself lays out row-major by call order, so the
     // RFE-cluster block below feeds it a column-major-reindexed call order
     // (columnMajorOrder) to make it read top-to-bottom per column instead.
     // Print uses fewer columns (wider cells) so long feature names don't
-    // overlap.
+    // overlap. `colWidth`, when given, overrides the derived maxWidth/cols
+    // spacing -- used to keep the Screen export's key columns bunched
+    // together instead of spreading edge-to-edge across its much wider canvas.
     const cols = nCols || 4, rowH = 14, swW = 10, swH = 7, gapSW = 5, padX = 0, padY = 0;
-    const colW = (maxWidth - padX * 2) / cols;
+    const colW = colWidth || (maxWidth - padX * 2) / cols;
     let idx = 0, extraY = 0;
     const textFill = resolve("var(--text-secondary)");
     const place = (drawSwatch, text, swWidth) => {
@@ -1463,7 +1475,13 @@ function renderChart(data) {
 
     const presentCats = new Set(exportRows.map(r => sourceCat(r.source_type)));
     const legendTop = margin + title.height + 10;
-    const legend = buildLegendGroup(resolve, chartW, presentCats, p ? p.keyCols : 4, showGutter);
+    // Screen's canvas is much wider than A4's compact profiles (chartW scales
+    // with plotW=1280), so deriving column width from chartW/cols would spread
+    // the key edge-to-edge; pin it to a fixed, bunched-together width instead
+    // (comparable to what the A4 profiles already use) and let it leave
+    // trailing whitespace on the right rather than stretch.
+    const SCREEN_KEY_COL_W = 220;
+    const legend = buildLegendGroup(resolve, chartW, presentCats, p ? p.keyCols : 4, showGutter, p ? null : SCREEN_KEY_COL_W);
     legend.node.setAttribute("transform", `translate(${margin}, ${legendTop})`);
 
     const tracksTop = legendTop + legend.height + 12;
