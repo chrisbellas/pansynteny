@@ -1138,13 +1138,22 @@ function renderChart(data) {
         label.textContent = rowLabelText(r);
         target.appendChild(label);
       } else {
-        // Export: source type stays the symbol already used in the key
-        // (never printed as text, even if it's one of the selected "Row
-        // labels" columns); any other selected column prints as text after
+        // Export: source type is drawn as the symbol already used in the key
+        // by default -- never printed as text even if it's one of the
+        // selected "Row labels" columns, freeing both dropdowns up for other
+        // columns. Only drawn when this dataset actually has a source-type
+        // column configured (data.metadata_source_col); otherwise silently
+        // dropped rather than falling back to a meaningless "other" glyph on
+        // every row. Any other selected column still prints as text after
         // the strain name, same selection as the live view.
         const sy = rowY + rowH / 2;
-        drawSymbol(target, sourceCat(r.source_type), labelX + 4, sy, 3.5, resolve("var(--text-primary)"));
-        const label = el("text", { x: labelX + 13, y: sy + 3, fill: resolve("var(--text-primary)"), "font-size": 10, "font-family": "monospace" });
+        const hasSourceCol = !!data.metadata_source_col;
+        let textX = labelX;
+        if (hasSourceCol) {
+          drawSymbol(target, sourceCat(r.source_type), labelX + 4, sy, 3.5, resolve("var(--text-primary)"));
+          textX = labelX + 13;
+        }
+        const label = el("text", { x: textX, y: sy + 3, fill: resolve("var(--text-primary)"), "font-size": 10, "font-family": "monospace" });
         label.textContent = rowLabelText(r, data.metadata_source_col);
         target.appendChild(label);
       }
@@ -1476,7 +1485,12 @@ function renderChart(data) {
     const title = buildTitle(resolve, exportRows.length, windowBp);
     title.node.setAttribute("transform", `translate(${margin}, ${margin})`);
 
-    const presentCats = new Set(exportRows.map(r => sourceCat(r.source_type)));
+    // Empty (not just unfiltered) when there's no source-type column
+    // configured for this dataset, so the source-symbol key section doesn't
+    // appear at all -- see the matching guard in renderTracks's export branch.
+    const presentCats = data.metadata_source_col
+      ? new Set(exportRows.map(r => sourceCat(r.source_type)))
+      : new Set();
     const legendTop = margin + title.height + 10;
     // Screen's canvas is much wider than A4's compact profiles (chartW scales
     // with plotW=1280), so deriving column width from chartW/cols would spread
