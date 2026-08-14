@@ -440,6 +440,24 @@ function el(tag, attrs) {
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
+// Reindexes `arr` so that dropping the result into a row-major grid (fill
+// left-to-right, `cols` per row -- the default for both the CSS grid legend
+// and the SVG export legend's manual row/col placement) reads top-to-bottom
+// down column 1, then column 2, etc., instead of left-to-right along each
+// row. Pads the ragged tail of the last column with `null` so callers can
+// leave that grid cell blank and keep every column the same height.
+function columnMajorOrder(arr, cols) {
+  const n = arr.length;
+  const rows = cols > 0 ? Math.ceil(n / cols) : 0;
+  const out = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const srcIdx = c * rows + r;
+      out.push(srcIdx < n ? arr[srcIdx] : null);
+    }
+  }
+  return out;
+}
 function measureApprox(s) { return s.length * 6.5; }
 // Short label for a Panaroo cluster: "group_10600" -> "10600"; an annotated
 // name takes its first "~~~" paralog segment ("sopA~~~sopA_1" -> "sopA").
@@ -827,9 +845,16 @@ function renderChart(data) {
   updateExportControls();
 
   const legend = document.getElementById("legend");
+  const LEGEND_COLS = 4; // matches .legend's grid-template-columns: repeat(4, ...)
   function buildLegend() {
     const items = [];
-    data.top_rfe_clusters.forEach(c => {
+    // Column-major: reads top-to-bottom down column 1, then column 2, etc.
+    // (easier to trace a color than left-to-right), while the underlying
+    // CSS grid still just fills row-major -- columnMajorOrder does the
+    // reindexing, padding the ragged last column with blank cells so the
+    // static rows appended below always start on a fresh row.
+    columnMajorOrder(data.top_rfe_clusters, LEGEND_COLS).forEach(c => {
+      if (c == null) { items.push(`<div class="legend-item"></div>`); return; }
       const label = (data.cluster_labels[c] || c).split(";")[0];
       items.push(`<div class="legend-item" data-cluster="${escapeHtml(c)}"><div class="swatch" style="background:${clusterColor[c]}"></div>${escapeHtml(c)} — ${escapeHtml(label.slice(0,38))}</div>`);
     });
@@ -1302,8 +1327,11 @@ function renderChart(data) {
   function buildLegendGroup(resolve, maxWidth, presentCats, nCols, showGutter) {
     const g = el("g", {});
     // Column grid so items line up in neat columns (mirrors the live HTML
-    // legend); placement is row-major by call order. Print uses fewer columns
-    // (wider cells) so the long feature names don't overlap.
+    // legend); `place()` itself lays out row-major by call order, so the
+    // RFE-cluster block below feeds it a column-major-reindexed call order
+    // (columnMajorOrder) to make it read top-to-bottom per column instead.
+    // Print uses fewer columns (wider cells) so long feature names don't
+    // overlap.
     const cols = nCols || 4, rowH = 14, swW = 10, swH = 7, gapSW = 5, padX = 0, padY = 0;
     const colW = (maxWidth - padX * 2) / cols;
     let idx = 0, extraY = 0;
@@ -1325,7 +1353,10 @@ function renderChart(data) {
       g.appendChild(el("line", { x1: padX, y1: y, x2: maxWidth - padX, y2: y, stroke: resolve("var(--text-muted)"), "stroke-width": 0.6 }));
       extraY += 9;
     };
-    data.top_rfe_clusters.forEach(c => {
+    // Column-major, matching the live HTML legend (see columnMajorOrder) --
+    // a blank slot just advances idx without drawing anything.
+    columnMajorOrder(data.top_rfe_clusters, cols).forEach(c => {
+      if (c == null) { idx++; return; }
       const label = (data.cluster_labels[c] || c).split(";")[0];
       const fill = resolve(clusterColor[c] || "var(--rfe-other-fill)");
       place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill })), `${c} — ${label.slice(0, 38)}`, swW);
