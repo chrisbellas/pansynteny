@@ -1334,7 +1334,7 @@ function renderChart(data) {
     return { node: g, height: 40 };
   }
 
-  function buildLegendGroup(resolve, maxWidth, presentCats, nCols, showGutter, colWidth) {
+  function buildLegendGroup(resolve, maxWidth, presentCats, nCols, showGutter, colWidth, fontSize) {
     const g = el("g", {});
     // Column grid so items line up in neat columns (mirrors the live HTML
     // legend); `place()` itself lays out row-major by call order, so the
@@ -1344,15 +1344,18 @@ function renderChart(data) {
     // overlap. `colWidth`, when given, overrides the derived maxWidth/cols
     // spacing -- used to keep the Screen export's key columns bunched
     // together instead of spreading edge-to-edge across its much wider canvas.
+    // `fontSize` likewise defaults to 9 but Screen bumps it slightly, since
+    // it isn't uniform-scaled down to a physical page size the way A4 is.
     const cols = nCols || 4, rowH = 14, swW = 10, swH = 7, gapSW = 5, padX = 0, padY = 0;
     const colW = colWidth || (maxWidth - padX * 2) / cols;
+    const fs = fontSize || 9;
     let idx = 0, extraY = 0;
     const textFill = resolve("var(--text-secondary)");
     const place = (drawSwatch, text, swWidth) => {
       const col = idx % cols, row = Math.floor(idx / cols);
       const cx = padX + col * colW, cy = padY + row * rowH + extraY;
       drawSwatch(cx, cy);
-      const t = el("text", { x: cx + swWidth + gapSW, y: cy + 7, fill: textFill, "font-size": 9, "font-family": "sans-serif" });
+      const t = el("text", { x: cx + swWidth + gapSW, y: cy + 7, fill: textFill, "font-size": fs, "font-family": "sans-serif" });
       t.textContent = text;
       g.appendChild(t);
       idx++;
@@ -1481,7 +1484,9 @@ function renderChart(data) {
     // (comparable to what the A4 profiles already use) and let it leave
     // trailing whitespace on the right rather than stretch.
     const SCREEN_KEY_COL_W = 220;
-    const legend = buildLegendGroup(resolve, chartW, presentCats, p ? p.keyCols : 4, showGutter, p ? null : SCREEN_KEY_COL_W);
+    const SCREEN_KEY_FONT_SIZE = 10.5;   // slightly larger than the 9px A4/default key text
+    const legend = buildLegendGroup(resolve, chartW, presentCats, p ? p.keyCols : 4, showGutter,
+      p ? null : SCREEN_KEY_COL_W, p ? null : SCREEN_KEY_FONT_SIZE);
     legend.node.setAttribute("transform", `translate(${margin}, ${legendTop})`);
 
     const tracksTop = legendTop + legend.height + 12;
