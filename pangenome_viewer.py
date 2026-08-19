@@ -396,6 +396,70 @@ def load_test_scores():
     return scores
 
 
+def load_pan_genome_reference():
+    """cluster -> representative CDS nucleotide sequence, from Panaroo's own
+    pan_genome_reference.fa -- a real sequence Panaroo copied from one
+    member genome during clustering (not a synthetic consensus), one per
+    pangenome cluster, headers matching the same 'group_XXXX' (or gene
+    name) convention used throughout this tool. Not a separate config
+    setting: assumed to sit where Panaroo always puts it, next to
+    PANAROO_CSV. Empty (feature silently off, same pattern as every other
+    optional input) if that sibling file isn't there."""
+    path = PANAROO_CSV.parent / "pan_genome_reference.fa"
+    if not path.exists():
+        return {}
+    out = {}
+    cluster = None
+    parts = []
+    with open(path) as f:
+        for line in f:
+            if line.startswith(">"):
+                if cluster is not None:
+                    out[cluster] = "".join(parts)
+                cluster = line[1:].split()[0]
+                parts = []
+            else:
+                parts.append(line.strip())
+    if cluster is not None:
+        out[cluster] = "".join(parts)
+    return out
+
+
+# Standard genetic code (NCBI table 11, bacterial -- identical to table 1
+# except for a couple of alternate start codons, handled separately below).
+# Prokka/Prodigal-called CDSs are already in-frame from the first base, so
+# translation here is just "read codons from position 0 until a stop".
+_CODON_TABLE = {
+    'TTT': 'F', 'TTC': 'F', 'TTA': 'L', 'TTG': 'L', 'CTT': 'L', 'CTC': 'L', 'CTA': 'L', 'CTG': 'L',
+    'ATT': 'I', 'ATC': 'I', 'ATA': 'I', 'ATG': 'M', 'GTT': 'V', 'GTC': 'V', 'GTA': 'V', 'GTG': 'V',
+    'TCT': 'S', 'TCC': 'S', 'TCA': 'S', 'TCG': 'S', 'CCT': 'P', 'CCC': 'P', 'CCA': 'P', 'CCG': 'P',
+    'ACT': 'T', 'ACC': 'T', 'ACA': 'T', 'ACG': 'T', 'GCT': 'A', 'GCC': 'A', 'GCA': 'A', 'GCG': 'A',
+    'TAT': 'Y', 'TAC': 'Y', 'TAA': '*', 'TAG': '*', 'CAT': 'H', 'CAC': 'H', 'CAA': 'Q', 'CAG': 'Q',
+    'AAT': 'N', 'AAC': 'N', 'AAA': 'K', 'AAG': 'K', 'GAT': 'D', 'GAC': 'D', 'GAA': 'E', 'GAG': 'E',
+    'TGT': 'C', 'TGC': 'C', 'TGA': '*', 'TGG': 'W', 'CGT': 'R', 'CGC': 'R', 'CGA': 'R', 'CGG': 'R',
+    'AGT': 'S', 'AGC': 'S', 'AGA': 'R', 'AGG': 'R', 'GGT': 'G', 'GGC': 'G', 'GGA': 'G', 'GGG': 'G',
+}
+_ALT_START_CODONS = {"GTG", "TTG"}  # translate as Met when they're the first codon
+
+
+def translate_dna(seq):
+    """CDS nucleotide -> protein, stopping at (and dropping) the first stop
+    codon. Trailing partial codon, if any, is ignored. An unrecognized
+    codon (stray ambiguity code) becomes 'X' rather than aborting."""
+    seq = seq.upper()
+    aa = []
+    for i in range(0, len(seq) - len(seq) % 3, 3):
+        codon = seq[i:i + 3]
+        if i == 0 and codon in _ALT_START_CODONS:
+            aa.append("M")
+            continue
+        res = _CODON_TABLE.get(codon, "X")
+        if res == "*":
+            break
+        aa.append(res)
+    return "".join(aa)
+
+
 # Non-CDS feature types Prokka emits that are worth showing as a separate map
 # layer -- structural/non-coding RNAs and repeats that otherwise render as
 # blank track (the main gene layer draws CDS only). "gene" is skipped: it is
@@ -482,6 +546,31 @@ def extract_contig_fasta(stem, contig):
     return "".join(parts)
 
 
+def extract_faa_record(stem, locus_tag):
+    """One protein sequence, read straight out of Prokka's own <stem>.faa --
+    already translated by Prokka/Prodigal (correct start codon, correct
+    genetic code), so this is preferred over re-translating from the GFF
+    nucleotide whenever a per-strain (as opposed to Panaroo's pangenome
+    reference) amino acid sequence is wanted. .faa isn't required for the
+    rest of this tool (only <stem>.gff is), so this is a soft dependency:
+    returns "" if the .faa is missing, or the locus_tag isn't in it."""
+    faa = PROKKA_BASE / stem / f"{stem}.faa"
+    if not faa.exists():
+        return ""
+    parts = []
+    in_target = False
+    with open(faa) as f:
+        for line in f:
+            if line.startswith(">"):
+                if in_target:
+                    break  # captured the whole target record; stop reading
+                in_target = line[1:].split()[0] == locus_tag
+                continue
+            if in_target:
+                parts.append(line.strip())
+    return "".join(parts)
+
+
 def find_n_runs(stem, contig, min_len=MIN_N_RUN):
     """Scaffold-gap N-runs on ONE contig of a genome's assembly. Returns a
     list of (start, end) 1-based inclusive coordinates for each run of >=
@@ -515,6 +604,13 @@ class Context:
         self.metadata, self.metadata_columns = load_metadata()
         self.metadata_value_totals = compute_metadata_value_totals(self.metadata, self.metadata_columns)
         self.test_scores = load_test_scores()
+
+        print("[startup] loading pangenome reference sequences...", file=sys.stderr)
+        self.pan_ref_nt = load_pan_genome_reference()
+        self.pan_ref_aa_cache = {}  # cluster -> translated AA, filled lazily per request
+        print(f"[startup] {len(self.pan_ref_nt)} reference sequences "
+              f"{'loaded' if self.pan_ref_nt else '(pan_genome_reference.fa not found -- feature off)'}",
+              file=sys.stderr)
         print("[startup] ready.", file=sys.stderr)
 
 
@@ -890,30 +986,22 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
     }
 
 
-def build_contig_export(ctx, anchor_cluster, genome_ids):
-    """Multi-FASTA text: for each requested genome_id, the WHOLE contig its
-    anchor_cluster locus sits on, in raw assembly (GFF) orientation --
-    genomes anchored on the '-' strand are NOT reverse-complemented to match
-    the chart's display orientation, so this is the sequence exactly as it
-    reads in that genome's own assembly.
+def resolve_anchor_loci(ctx, anchor_cluster, genome_ids):
+    """For each of the given genome_ids, this cluster's carrier locus tag(s)
+    (semicolon-split Panaroo CSV cell) -- a single fresh pass over the
+    Panaroo CSV, deliberately not reusing build_chart_data's own pass: this
+    is meant for a handful of specific genomes (export-selection checkboxes,
+    a single sequence-viewer lookup), not a full count-toggle sample, so
+    redoing this single-cluster-row scan is cheaper than threading a whole
+    chart-build's state through for it.
 
-    Deliberately re-resolves loci from a single fresh pass over the Panaroo
-    CSV rather than reusing build_chart_data's -- this is meant for the
-    handful of genomes ticked in the export-selection checkboxes, not a full
-    count-toggle sample, so redoing the (cheap, single-cluster-row) lookup
-    here avoids threading a whole chart-build's state through for what's
-    normally a handful of genomes.
-
-    Returns (fasta_text, warnings): fasta_text is None if nothing could be
-    exported at all; warnings lists one message per genome_id that couldn't
-    be resolved (not a carrier, refound-only locus, or no ##FASTA block in
-    that genome's GFF), in the caller's requested order."""
+    Returns (present, error): present maps genome_id -> [locus_tag, ...]
+    for whichever of genome_ids are carriers; error is set (present then
+    empty) only if anchor_cluster itself doesn't resolve at all."""
     if anchor_cluster not in ctx.cluster_lookup:
-        return None, [f"cluster {anchor_cluster!r} not found"]
+        return {}, f"cluster {anchor_cluster!r} not found"
 
     wanted = set(genome_ids)
-    mge_types = load_mge_types_for_cluster(anchor_cluster)
-
     with open(PANAROO_CSV, newline="") as f:
         r = csv.reader(f)
         header = next(r)
@@ -924,7 +1012,7 @@ def build_contig_export(ctx, anchor_cluster, genome_ids):
                 anchor_row = row
                 break
     if anchor_row is None:
-        return None, [f"cluster {anchor_cluster!r} not found in Panaroo CSV"]
+        return {}, f"cluster {anchor_cluster!r} not found in Panaroo CSV"
 
     present = {}
     for stem, cell in zip(genome_cols, anchor_row[3:]):
@@ -935,7 +1023,25 @@ def build_contig_export(ctx, anchor_cluster, genome_ids):
         if g is None or g not in wanted:
             continue
         present[g] = [x.strip() for x in cell.split(";") if x.strip()]
+    return present, None
 
+
+def build_contig_export(ctx, anchor_cluster, genome_ids):
+    """Multi-FASTA text: for each requested genome_id, the WHOLE contig its
+    anchor_cluster locus sits on, in raw assembly (GFF) orientation --
+    genomes anchored on the '-' strand are NOT reverse-complemented to match
+    the chart's display orientation, so this is the sequence exactly as it
+    reads in that genome's own assembly.
+
+    Returns (fasta_text, warnings): fasta_text is None if nothing could be
+    exported at all; warnings lists one message per genome_id that couldn't
+    be resolved (not a carrier, refound-only locus, or no ##FASTA block in
+    that genome's GFF), in the caller's requested order."""
+    present, error = resolve_anchor_loci(ctx, anchor_cluster, genome_ids)
+    if error:
+        return None, [error]
+
+    mge_types = load_mge_types_for_cluster(anchor_cluster)
     records, warnings = [], []
     for g in genome_ids:  # preserve the caller's (selection) order
         loci = present.get(g)
@@ -960,6 +1066,49 @@ def build_contig_export(ctx, anchor_cluster, genome_ids):
     if not records:
         return None, warnings or ["no exportable genomes"]
     return "\n".join(records) + "\n", warnings
+
+
+def build_sequence_response(ctx, anchor_cluster, genome_id=None):
+    """Amino acid sequences for the gene-sequence panel: Panaroo's pangenome
+    representative (a real member sequence, translated on first request per
+    cluster and cached), plus -- if genome_id is given -- that specific
+    genome's own copy, read straight out of its Prokka .faa (already
+    correctly translated, not re-derived). Returns a JSON-able dict with an
+    "error" key on total failure (bad cluster); otherwise "representative"
+    and "strain" are each either {aa, length, ...} or None with a "note"
+    explaining why (no pan_genome_reference.fa loaded, genome isn't a
+    carrier, no .faa on disk, etc.) -- never a hard error just because one
+    of the two views isn't available."""
+    if anchor_cluster not in ctx.cluster_lookup:
+        return {"error": f"cluster {anchor_cluster!r} not found"}
+
+    representative = None
+    if anchor_cluster in ctx.pan_ref_nt:
+        aa = ctx.pan_ref_aa_cache.get(anchor_cluster)
+        if aa is None:
+            aa = translate_dna(ctx.pan_ref_nt[anchor_cluster])
+            ctx.pan_ref_aa_cache[anchor_cluster] = aa
+        representative = {"aa": aa, "length": len(aa)}
+    else:
+        representative = {"note": "pan_genome_reference.fa not available for this deployment"}
+
+    strain = None
+    if genome_id:
+        present, error = resolve_anchor_loci(ctx, anchor_cluster, [genome_id])
+        loci = present.get(genome_id) if not error else None
+        if not loci:
+            strain = {"note": f"{genome_id} is not a resolvable carrier of {anchor_cluster}"}
+        else:
+            mge_types = load_mge_types_for_cluster(anchor_cluster)
+            locus = pick_locus(loci, mge_types, genome_id)
+            stem = ctx.genome_stem_map[genome_id]
+            aa = extract_faa_record(stem, locus)
+            if not aa:
+                strain = {"note": f"no .faa entry for locus {locus} (missing .faa, or a refound placeholder)"}
+            else:
+                strain = {"genome_id": genome_id, "locus": locus, "aa": aa, "length": len(aa)}
+
+    return {"cluster": anchor_cluster, "representative": representative, "strain": strain}
 
 
 # ---------------------------------------------------------------------------
@@ -1076,6 +1225,19 @@ def make_handler(ctx):
                 self._send_download(fasta_text, f"{safe_anchor}_contigs.fasta", warnings=warnings)
                 if warnings:
                     print(f"[export] {len(warnings)} genome(s) skipped: {'; '.join(warnings)}", file=sys.stderr)
+                return
+
+            if parsed.path == "/api/sequence":
+                anchor = (qs.get("cluster", [""])[0])
+                genome_id = (qs.get("genome", [""])[0]) or None
+                if not anchor:
+                    self._send_json({"error": "missing 'cluster' query param"}, status=400)
+                    return
+                data = build_sequence_response(ctx, anchor, genome_id)
+                if "error" in data:
+                    self._send_json(data, status=404)
+                    return
+                self._send_json(data)
                 return
 
             self.send_response(404)

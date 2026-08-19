@@ -245,6 +245,45 @@ svg { display: block; }
 #tooltip .tt-title { font-weight: 650; margin-bottom: 2px; }
 #tooltip .tt-row { color: var(--text-muted); }
 
+/* ---- gene sequence panel (double-click a gene) ---- */
+.seq-panel-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 90; display: none;
+}
+.seq-panel-backdrop.open { display: block; }
+.seq-panel {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(640px, 92vw); max-height: 82vh; overflow-y: auto;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35); z-index: 91; display: none; padding: 18px 20px;
+}
+.seq-panel.open { display: block; }
+.seq-panel-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.seq-panel-title { font-weight: 650; font-size: 15px; }
+.seq-panel-sub { display: block; color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+.seq-panel-close {
+  border: none; background: none; color: var(--text-muted); font-size: 22px; line-height: 1;
+  cursor: pointer; padding: 0 4px; flex: none;
+}
+.seq-panel-close:hover { color: var(--text-primary); }
+.seq-block { margin-bottom: 16px; }
+.seq-block:last-child { margin-bottom: 0; }
+.seq-block-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 10px; }
+.seq-block-label { font-weight: 600; font-size: 12.5px; }
+.seq-copy-btn {
+  font-size: 11.5px; padding: 3px 10px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text-primary); cursor: pointer; flex: none;
+}
+.seq-copy-btn:hover:not(:disabled) { border-color: var(--accent); }
+.seq-copy-btn:disabled { opacity: 0.4; cursor: default; }
+.seq-copy-btn.copied { color: var(--accent); border-color: var(--accent); }
+.seq-text {
+  font-family: ui-monospace, monospace; font-size: 11.5px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-all; background: var(--page);
+  border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+  max-height: 220px; overflow-y: auto;
+}
+.seq-note { color: var(--text-muted); font-size: 12px; font-style: italic; }
+
 footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
 </style>
 
@@ -343,6 +382,18 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
 
 <div id="tooltip"></div>
 
+<div id="seq-panel-backdrop" class="seq-panel-backdrop"></div>
+<div id="seq-panel" class="seq-panel" role="dialog" aria-modal="true">
+  <div class="seq-panel-header">
+    <div>
+      <span id="seq-panel-title" class="seq-panel-title"></span>
+      <span id="seq-panel-sub" class="seq-panel-sub"></span>
+    </div>
+    <button type="button" class="seq-panel-close" id="seq-panel-close" aria-label="Close">&times;</button>
+  </div>
+  <div id="seq-panel-body" class="seq-panel-body"></div>
+</div>
+
 <script>
 const S_COLORS = ["s1","s2","s3","s4","s5","s6","s7","s8","s9","s10","s11","s12","s13","s14","s15","s16"];
 const NS = "http://www.w3.org/2000/svg";
@@ -400,6 +451,82 @@ fetch("/api/metadata_totals").then(r => r.json()).then(d => {
   metadataTotals = d;
   refreshFilterStats();
 }).catch(() => {});
+
+// ---- gene sequence panel (double-click a gene arrow) ------------------------
+// One panel instance reused across every chart build/redraw -- unlike
+// showTooltip/applyPin (defined per-renderChart(data) call since they touch
+// that chart's own state), this only ever needs the cluster + genome_id
+// passed in from wherever it was triggered, plus a fresh /api/sequence
+// fetch, so there's nothing chart-instance-specific to close over.
+const seqPanelBackdrop = document.getElementById("seq-panel-backdrop");
+const seqPanel = document.getElementById("seq-panel");
+const seqPanelTitle = document.getElementById("seq-panel-title");
+const seqPanelSub = document.getElementById("seq-panel-sub");
+const seqPanelBody = document.getElementById("seq-panel-body");
+const seqPanelClose = document.getElementById("seq-panel-close");
+
+function closeSequencePanel() {
+  seqPanel.classList.remove("open");
+  seqPanelBackdrop.classList.remove("open");
+}
+seqPanelClose.onclick = closeSequencePanel;
+seqPanelBackdrop.onclick = closeSequencePanel;
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && seqPanel.classList.contains("open")) closeSequencePanel();
+});
+
+function seqBlockHtml(label, view) {
+  if (!view) return "";
+  if (view.note) {
+    return `<div class="seq-block"><div class="seq-block-label">${escapeHtml(label)}</div>` +
+           `<div class="seq-note">${escapeHtml(view.note)}</div></div>`;
+  }
+  const meta = view.locus ? ` &middot; locus ${escapeHtml(view.locus)}` : "";
+  return `<div class="seq-block">
+    <div class="seq-block-head">
+      <span class="seq-block-label">${escapeHtml(label)} <span class="seq-note">(${view.length} aa${meta})</span></span>
+      <button type="button" class="seq-copy-btn" data-seq="${escapeHtml(view.aa)}">Copy</button>
+    </div>
+    <div class="seq-text">${escapeHtml(view.aa)}</div>
+  </div>`;
+}
+
+function openSequencePanel(cluster, genomeId, annotation) {
+  seqPanelTitle.textContent = cluster;
+  seqPanelSub.textContent = (annotation ? annotation + " · " : "") + "loading…";
+  seqPanelBody.innerHTML = "";
+  seqPanel.classList.add("open");
+  seqPanelBackdrop.classList.add("open");
+
+  fetch(`/api/sequence?cluster=${encodeURIComponent(cluster)}&genome=${encodeURIComponent(genomeId)}`)
+    .then(r => r.json())
+    .then(d => {
+      if (seqPanelTitle.textContent !== cluster) return; // panel moved on to a different gene meanwhile
+      if (d.error) {
+        seqPanelSub.textContent = "";
+        seqPanelBody.innerHTML = `<div class="seq-note">${escapeHtml(d.error)}</div>`;
+        return;
+      }
+      seqPanelSub.textContent = annotation || "";
+      seqPanelBody.innerHTML =
+        seqBlockHtml("Pangenome representative", d.representative) +
+        seqBlockHtml(`This genome's copy (${genomeId})`, d.strain);
+      seqPanelBody.querySelectorAll(".seq-copy-btn").forEach(btn => {
+        btn.onclick = () => {
+          navigator.clipboard.writeText(btn.dataset.seq).then(() => {
+            const prev = btn.textContent;
+            btn.textContent = "Copied";
+            btn.classList.add("copied");
+            setTimeout(() => { btn.textContent = prev; btn.classList.remove("copied"); }, 1200);
+          });
+        };
+      });
+    })
+    .catch(e => {
+      seqPanelSub.textContent = "";
+      seqPanelBody.innerHTML = `<div class="seq-note">Failed to load: ${escapeHtml(String(e))}</div>`;
+    });
+}
 
 // ---- color palette selector -------------------------------------------------
 // Swaps the 12 categorical hues (--s1..--s12) that color genes + gutter squares.
@@ -1273,6 +1400,11 @@ function renderChart(data) {
             ev.stopPropagation();
             if (g.cluster === "NA") return;
             applyPin(pinnedCluster === g.cluster ? null : g.cluster);
+          });
+          poly.addEventListener("dblclick", (ev) => {
+            ev.stopPropagation();
+            if (g.cluster === "NA") return;
+            openSequencePanel(g.cluster, r.genome_id, g.product);
           });
         } else {
           poly = el("polygon", { points, fill: resolve(fill), stroke: resolve(stroke), "stroke-width": 0.75 });
