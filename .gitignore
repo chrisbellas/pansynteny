@@ -6,6 +6,11 @@ pangenome_viewer.config
 # `python3 pgv_lookup.py --build-index`.
 cluster_offsets.json
 
+# pangenome_viewer.py's own byte-offset index caches (single-cluster
+# lookups for the sequence panel + contig export), rebuilt automatically
+# if missing or stale.
+mge_offsets.json
+
 __pycache__/
 *.pyc
 server.log

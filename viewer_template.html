@@ -265,10 +265,16 @@ svg { display: block; }
   cursor: pointer; padding: 0 4px; flex: none;
 }
 .seq-panel-close:hover { color: var(--text-primary); }
-.seq-block { margin-bottom: 16px; }
+.seq-block { margin-bottom: 18px; }
 .seq-block:last-child { margin-bottom: 0; }
-.seq-block-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; gap: 10px; }
-.seq-block-label { font-weight: 600; font-size: 12.5px; }
+.seq-block-label { font-weight: 600; font-size: 12.5px; margin-bottom: 8px; }
+.seq-sub { margin-bottom: 10px; }
+.seq-sub:last-child { margin-bottom: 0; }
+.seq-sub-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 10px; }
+.seq-sub-label {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
 .seq-copy-btn {
   font-size: 11.5px; padding: 3px 10px; border-radius: 5px; border: 1px solid var(--border);
   background: var(--surface-1); color: var(--text-primary); cursor: pointer; flex: none;
@@ -475,6 +481,17 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && seqPanel.classList.contains("open")) closeSequencePanel();
 });
 
+function seqSubBlockHtml(label, seq) {
+  if (!seq) return "";
+  return `<div class="seq-sub">
+    <div class="seq-sub-head">
+      <span class="seq-sub-label">${escapeHtml(label)}</span>
+      <button type="button" class="seq-copy-btn" data-seq="${escapeHtml(seq)}">Copy</button>
+    </div>
+    <div class="seq-text">${escapeHtml(seq)}</div>
+  </div>`;
+}
+
 function seqBlockHtml(label, view) {
   if (!view) return "";
   if (view.note) {
@@ -483,11 +500,9 @@ function seqBlockHtml(label, view) {
   }
   const meta = view.locus ? ` &middot; locus ${escapeHtml(view.locus)}` : "";
   return `<div class="seq-block">
-    <div class="seq-block-head">
-      <span class="seq-block-label">${escapeHtml(label)} <span class="seq-note">(${view.length} aa${meta})</span></span>
-      <button type="button" class="seq-copy-btn" data-seq="${escapeHtml(view.aa)}">Copy</button>
-    </div>
-    <div class="seq-text">${escapeHtml(view.aa)}</div>
+    <div class="seq-block-label">${escapeHtml(label)} <span class="seq-note">(${view.length} aa${meta})</span></div>
+    ${seqSubBlockHtml("Amino acid", view.aa)}
+    ${seqSubBlockHtml("Nucleotide", view.nt)}
   </div>`;
 }
 

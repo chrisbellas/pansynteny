@@ -43,6 +43,16 @@ Genome selection is a fixed shuffle of the carrier list (seed 42), sliced
 to the requested count, so counts nest (1000 is 500's genomes plus 500
 more) instead of each count drawing an unrelated random sample.
 
+The one exception: single-cluster/single-genome lookups that aren't part
+of a chart build (the sequence panel, contig export) go through a small
+on-disk byte-offset index (cluster_offsets.json, gitignored, rebuilds
+itself if missing or stale) instead of a linear scan -- those are
+triggered by a UI click and need to feel instant, unlike a chart build the
+user already expects to take a while. Same cache file pgv_lookup.py's own
+CLI uses (see build_cluster_offset_index()'s docstring for why the index
+-building code itself isn't shared between the two). The chart-build scan
+itself is untouched.
+
 Usage:
     python3 pangenome_viewer.py --panaroo-csv /abs/path/gene_presence_absence.csv \\
         --prokka-dir /abs/path/prokka_out [--metadata-tsv ... --rfe-features-txt ...]
@@ -66,6 +76,11 @@ from pathlib import Path
 
 BASE = Path(__file__).resolve().parent
 TEMPLATE_HTML = BASE / "viewer_template.html"
+# Same file pgv_lookup.py's OFFSET_INDEX points at (same BASE, same
+# filename) -- whichever of the two tools builds it first, the other
+# reuses it as-is; deliberately not shared code between them (see
+# build_cluster_offset_index()'s docstring for why).
+CLUSTER_OFFSETS_PATH = BASE / "cluster_offsets.json"
 CONFIG_FILENAME = "pangenome_viewer.config"
 
 # Resolved once in main() via configure_globals(), before Context() is built
@@ -546,20 +561,20 @@ def extract_contig_fasta(stem, contig):
     return "".join(parts)
 
 
-def extract_faa_record(stem, locus_tag):
-    """One protein sequence, read straight out of Prokka's own <stem>.faa --
-    already translated by Prokka/Prodigal (correct start codon, correct
-    genetic code), so this is preferred over re-translating from the GFF
-    nucleotide whenever a per-strain (as opposed to Panaroo's pangenome
-    reference) amino acid sequence is wanted. .faa isn't required for the
-    rest of this tool (only <stem>.gff is), so this is a soft dependency:
-    returns "" if the .faa is missing, or the locus_tag isn't in it."""
-    faa = PROKKA_BASE / stem / f"{stem}.faa"
-    if not faa.exists():
+def _extract_locus_record(stem, locus_tag, ext):
+    """One record's sequence, read straight out of Prokka's <stem>.<ext> by
+    exact locus_tag match on the header's first whitespace-delimited token.
+    Shared by extract_faa_record (ext='faa', protein) and
+    extract_ffn_record (ext='ffn', per-gene nucleotide) -- neither file is
+    required for the rest of this tool (only <stem>.gff is), so this is a
+    soft dependency: returns "" if the file is missing, or the locus_tag
+    isn't in it."""
+    path = PROKKA_BASE / stem / f"{stem}.{ext}"
+    if not path.exists():
         return ""
     parts = []
     in_target = False
-    with open(faa) as f:
+    with open(path) as f:
         for line in f:
             if line.startswith(">"):
                 if in_target:
@@ -569,6 +584,22 @@ def extract_faa_record(stem, locus_tag):
             if in_target:
                 parts.append(line.strip())
     return "".join(parts)
+
+
+def extract_faa_record(stem, locus_tag):
+    """One protein sequence, read straight out of Prokka's own <stem>.faa --
+    already translated by Prokka/Prodigal (correct start codon, correct
+    genetic code), so this is preferred over re-translating from the GFF
+    nucleotide whenever a per-strain (as opposed to Panaroo's pangenome
+    reference) amino acid sequence is wanted."""
+    return _extract_locus_record(stem, locus_tag, "faa")
+
+
+def extract_ffn_record(stem, locus_tag):
+    """One gene's own nucleotide (CDS) sequence, read straight out of
+    Prokka's <stem>.ffn -- the per-strain nucleotide counterpart to
+    extract_faa_record's protein."""
+    return _extract_locus_record(stem, locus_tag, "ffn")
 
 
 def find_n_runs(stem, contig, min_len=MIN_N_RUN):
@@ -611,6 +642,24 @@ class Context:
         print(f"[startup] {len(self.pan_ref_nt)} reference sequences "
               f"{'loaded' if self.pan_ref_nt else '(pan_genome_reference.fa not found -- feature off)'}",
               file=sys.stderr)
+
+        print("[startup] loading cluster byte-offset index (single-cluster "
+              "lookups: sequence panel, contig export)...", file=sys.stderr)
+        self.cluster_offsets = load_cluster_offsets()
+        if len(self.cluster_offsets) != len(self.cluster_lookup):
+            print(f"[startup] cluster_offsets.json looks stale "
+                  f"({len(self.cluster_offsets)} vs {len(self.cluster_lookup)} "
+                  f"clusters) -- rebuilding...", file=sys.stderr)
+            self.cluster_offsets = build_cluster_offset_index()
+        print(f"[startup] {len(self.cluster_offsets)} cluster offsets ready", file=sys.stderr)
+
+        if MGE_GENES_TSV is not None:
+            print("[startup] loading MGE-gene byte-offset index...", file=sys.stderr)
+        self.mge_offsets = load_mge_offsets()
+        if MGE_GENES_TSV is not None:
+            print(f"[startup] {sum(len(v) for v in self.mge_offsets.values())} MGE rows "
+                  f"across {len(self.mge_offsets)} clusters ready", file=sys.stderr)
+
         print("[startup] ready.", file=sys.stderr)
 
 
@@ -618,18 +667,95 @@ class Context:
 # Chart builder.
 # ---------------------------------------------------------------------------
 
-def load_mge_types_for_cluster(anchor_cluster):
+MGE_OFFSETS_PATH = BASE / "mge_offsets.json"
+
+
+def build_mge_offset_index():
+    """One pass over MGE_GENES_TSV, recording every row's start byte offset
+    under its pangenome_gene_cluster. Unlike the Panaroo CSV (exactly one
+    row per cluster), this file has one row per (genome, locus) instance
+    and is ordered by genome, not by cluster -- so a cluster's rows are
+    scattered throughout the file, and this maps to a LIST of offsets per
+    cluster rather than a single one. Persisted to MGE_OFFSETS_PATH
+    (gitignored) alongside the source file's mtime, so a later load can
+    detect staleness (a repointed/regenerated mge_genes_tsv) without first
+    re-scanning to find out."""
+    if MGE_GENES_TSV is None:
+        return {}
+    offsets = {}
+    with open(MGE_GENES_TSV, newline="") as f:
+        header_line = f.readline()
+        cluster_col = header_line.rstrip("\n").split("\t").index("pangenome_gene_cluster")
+        pos = f.tell()
+        line = f.readline()
+        while line:
+            parts = line.split("\t")
+            if len(parts) > cluster_col:
+                offsets.setdefault(parts[cluster_col], []).append(pos)
+            pos = f.tell()
+            line = f.readline()
+    MGE_OFFSETS_PATH.write_text(json.dumps({
+        "_source_mtime": MGE_GENES_TSV.stat().st_mtime,
+        "offsets": offsets,
+    }))
+    n_rows = sum(len(v) for v in offsets.values())
+    print(f"[startup] indexed {n_rows} MGE rows across {len(offsets)} clusters "
+          f"-> {MGE_OFFSETS_PATH.name}", file=sys.stderr)
+    return offsets
+
+
+def load_mge_offsets():
+    """MGE_OFFSETS_PATH's cached index if its recorded source mtime still
+    matches MGE_GENES_TSV, else a fresh build. Empty (not an error) if
+    MGE_GENES_TSV wasn't supplied at all -- load_mge_types_for_cluster
+    already handles that same way."""
+    if MGE_GENES_TSV is None:
+        return {}
+    if MGE_OFFSETS_PATH.exists():
+        cached = json.loads(MGE_OFFSETS_PATH.read_text())
+        if cached.get("_source_mtime") == MGE_GENES_TSV.stat().st_mtime:
+            return cached["offsets"]
+    return build_mge_offset_index()
+
+
+_mge_header_cache = None
+
+
+def load_mge_types_for_cluster(anchor_cluster, offsets=None):
     """(genome_id, locus_tag) -> mge_type, for this anchor's gene instances
     only -- used for copy-selection when a genome carries >1 paralog, and
     for the row-label mge_type field. Empty if MGE_GENES_TSV wasn't
-    supplied."""
+    supplied.
+
+    `offsets` (pass ctx.mge_offsets), when given, turns this into a
+    handful of seeks against this cluster's known row offsets instead of a
+    full DictReader scan of a several-hundred-MB file -- the difference
+    between single-digit seconds and single-digit milliseconds. Falls back
+    to the original full-scan behavior when omitted, so any caller that
+    doesn't have a live ctx handy still works, just slower."""
     if MGE_GENES_TSV is None:
         return {}
+    if offsets is None:
+        types = {}
+        with open(MGE_GENES_TSV, newline="") as f:
+            for row in csv.DictReader(f, delimiter="\t"):
+                if row["pangenome_gene_cluster"] != anchor_cluster:
+                    continue
+                types[(row["genome_id"], row["locus_tag"])] = row["mge_type"]
+        return types
+
+    global _mge_header_cache
+    positions = offsets.get(anchor_cluster, [])
+    if not positions:
+        return {}
+    if _mge_header_cache is None:
+        with open(MGE_GENES_TSV, newline="") as f:
+            _mge_header_cache = next(csv.reader(f, delimiter="\t"))
     types = {}
     with open(MGE_GENES_TSV, newline="") as f:
-        for row in csv.DictReader(f, delimiter="\t"):
-            if row["pangenome_gene_cluster"] != anchor_cluster:
-                continue
+        for pos in positions:
+            f.seek(pos)
+            row = dict(zip(_mge_header_cache, next(csv.reader(f, delimiter="\t"))))
             types[(row["genome_id"], row["locus_tag"])] = row["mge_type"]
     return types
 
@@ -653,7 +779,7 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
     if anchor_cluster not in ctx.cluster_lookup:
         return {"error": f"cluster {anchor_cluster!r} not found"}
 
-    mge_types = load_mge_types_for_cluster(anchor_cluster)
+    mge_types = load_mge_types_for_cluster(anchor_cluster, ctx.mge_offsets)
 
     with open(PANAROO_CSV, newline="") as f:
         r = csv.reader(f)
@@ -986,14 +1112,83 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
     }
 
 
+def build_cluster_offset_index():
+    """One pass over the Panaroo CSV, recording each cluster row's start
+    byte offset -- written to CLUSTER_OFFSETS_PATH so future server starts
+    (and pgv_lookup.py's own CLI, which points at the same file) can just
+    load it instead of rebuilding. Deliberately NOT shared code with
+    pgv_lookup.py's own near-identical build_index(): that tool imports
+    this module (`import pangenome_viewer as pv`) and is meant to run as
+    its own standalone entry point, where its `pv` reference is configured
+    via its own _configure(); this module can't import it back the same
+    way -- when pangenome_viewer.py itself is what's running (always, for
+    the live server), `import pgv_lookup` would re-import this file as a
+    second, freshly-reset module object rather than binding to the live
+    __main__ one, so PANAROO_CSV etc. on that copy would be None. Small
+    enough (~15 lines) that duplicating it here is simpler and more robust
+    than fighting that.
+
+    Uses explicit readline() (not `for line in f` / csv.reader on the file
+    object) because file.tell() is only reliable after readline() in text
+    mode -- iterating a file object internally buffers ahead and silently
+    desyncs tell() from the logical line position. Splitting the first
+    field on a raw comma (not csv.reader) is safe here because Panaroo
+    cluster names never contain a comma or quote character."""
+    offsets = {}
+    with open(PANAROO_CSV, newline="") as f:
+        f.readline()  # header
+        pos = f.tell()
+        line = f.readline()
+        while line:
+            cluster = line.split(",", 1)[0]
+            offsets[cluster] = pos
+            pos = f.tell()
+            line = f.readline()
+    CLUSTER_OFFSETS_PATH.write_text(json.dumps(offsets))
+    print(f"[startup] indexed {len(offsets)} clusters -> {CLUSTER_OFFSETS_PATH.name}", file=sys.stderr)
+    return offsets
+
+
+def load_cluster_offsets():
+    """CLUSTER_OFFSETS_PATH's cached index, or a fresh build if it's
+    missing. Context.__init__ separately checks the loaded count against
+    the already-known cluster count and rebuilds if that looks stale (e.g.
+    panaroo_csv was repointed at a different dataset since the cache was
+    written) -- this function itself trusts whatever's on disk."""
+    if not CLUSTER_OFFSETS_PATH.exists():
+        return build_cluster_offset_index()
+    return json.loads(CLUSTER_OFFSETS_PATH.read_text())
+
+
+_panaroo_header_cache = None
+
+
+def get_cluster_row(cluster_name, offsets):
+    """(header, row) for one cluster via an instant seek instead of a
+    scan. Raises KeyError if cluster_name isn't in `offsets`."""
+    global _panaroo_header_cache
+    if cluster_name not in offsets:
+        raise KeyError(f"{cluster_name!r} not in the cluster offset index "
+                        f"(or the index is stale)")
+    if _panaroo_header_cache is None:
+        with open(PANAROO_CSV, newline="") as f:
+            _panaroo_header_cache = next(csv.reader(f))
+    with open(PANAROO_CSV, newline="") as f:
+        f.seek(offsets[cluster_name])
+        row = next(csv.reader(f))
+    return _panaroo_header_cache, row
+
+
 def resolve_anchor_loci(ctx, anchor_cluster, genome_ids):
     """For each of the given genome_ids, this cluster's carrier locus tag(s)
-    (semicolon-split Panaroo CSV cell) -- a single fresh pass over the
-    Panaroo CSV, deliberately not reusing build_chart_data's own pass: this
-    is meant for a handful of specific genomes (export-selection checkboxes,
-    a single sequence-viewer lookup), not a full count-toggle sample, so
-    redoing this single-cluster-row scan is cheaper than threading a whole
-    chart-build's state through for it.
+    (semicolon-split Panaroo CSV cell). An instant seek via the byte-offset
+    index (ctx.cluster_offsets), not a scan -- this is meant for a handful
+    of specific genomes (export-selection checkboxes, a single
+    sequence-viewer lookup) triggered directly by a UI click, so it needs
+    to feel instant. A full linear scan of a several-hundred-MB Panaroo CSV
+    per click was the previous approach here and took several seconds
+    every time; build_chart_data's own scan is untouched (see the module
+    docstring -- that one stays scan-based on purpose).
 
     Returns (present, error): present maps genome_id -> [locus_tag, ...]
     for whichever of genome_ids are carriers; error is set (present then
@@ -1001,21 +1196,14 @@ def resolve_anchor_loci(ctx, anchor_cluster, genome_ids):
     if anchor_cluster not in ctx.cluster_lookup:
         return {}, f"cluster {anchor_cluster!r} not found"
 
-    wanted = set(genome_ids)
-    with open(PANAROO_CSV, newline="") as f:
-        r = csv.reader(f)
-        header = next(r)
-        genome_cols = header[3:]
-        anchor_row = None
-        for row in r:
-            if row[0] == anchor_cluster:
-                anchor_row = row
-                break
-    if anchor_row is None:
-        return {}, f"cluster {anchor_cluster!r} not found in Panaroo CSV"
+    try:
+        header, row = get_cluster_row(anchor_cluster, ctx.cluster_offsets)
+    except KeyError as e:
+        return {}, str(e)
 
+    wanted = set(genome_ids)
     present = {}
-    for stem, cell in zip(genome_cols, anchor_row[3:]):
+    for stem, cell in zip(header[3:], row[3:]):
         cell = cell.strip()
         if not cell:
             continue
@@ -1041,7 +1229,7 @@ def build_contig_export(ctx, anchor_cluster, genome_ids):
     if error:
         return None, [error]
 
-    mge_types = load_mge_types_for_cluster(anchor_cluster)
+    mge_types = load_mge_types_for_cluster(anchor_cluster, ctx.mge_offsets)
     records, warnings = [], []
     for g in genome_ids:  # preserve the caller's (selection) order
         loci = present.get(g)
@@ -1069,26 +1257,29 @@ def build_contig_export(ctx, anchor_cluster, genome_ids):
 
 
 def build_sequence_response(ctx, anchor_cluster, genome_id=None):
-    """Amino acid sequences for the gene-sequence panel: Panaroo's pangenome
-    representative (a real member sequence, translated on first request per
-    cluster and cached), plus -- if genome_id is given -- that specific
-    genome's own copy, read straight out of its Prokka .faa (already
-    correctly translated, not re-derived). Returns a JSON-able dict with an
-    "error" key on total failure (bad cluster); otherwise "representative"
-    and "strain" are each either {aa, length, ...} or None with a "note"
-    explaining why (no pan_genome_reference.fa loaded, genome isn't a
-    carrier, no .faa on disk, etc.) -- never a hard error just because one
-    of the two views isn't available."""
+    """Amino acid + nucleotide sequences for the gene-sequence panel:
+    Panaroo's pangenome representative (a real member sequence -- the
+    nucleotide is pan_genome_reference.fa as-is, the AA translated from it
+    on first request per cluster and cached), plus -- if genome_id is given
+    -- that specific genome's own copy, both read straight out of its
+    Prokka .faa/.ffn (already correct, not re-derived). Returns a
+    JSON-able dict with an "error" key on total failure (bad cluster);
+    otherwise "representative" and "strain" are each either {aa, nt,
+    length, ...} or None with a "note" explaining why (no
+    pan_genome_reference.fa loaded, genome isn't a carrier, no .faa/.ffn on
+    disk, etc.) -- never a hard error just because one of the two views
+    isn't available."""
     if anchor_cluster not in ctx.cluster_lookup:
         return {"error": f"cluster {anchor_cluster!r} not found"}
 
     representative = None
     if anchor_cluster in ctx.pan_ref_nt:
+        nt = ctx.pan_ref_nt[anchor_cluster]
         aa = ctx.pan_ref_aa_cache.get(anchor_cluster)
         if aa is None:
-            aa = translate_dna(ctx.pan_ref_nt[anchor_cluster])
+            aa = translate_dna(nt)
             ctx.pan_ref_aa_cache[anchor_cluster] = aa
-        representative = {"aa": aa, "length": len(aa)}
+        representative = {"aa": aa, "nt": nt, "length": len(aa)}
     else:
         representative = {"note": "pan_genome_reference.fa not available for this deployment"}
 
@@ -1099,14 +1290,15 @@ def build_sequence_response(ctx, anchor_cluster, genome_id=None):
         if not loci:
             strain = {"note": f"{genome_id} is not a resolvable carrier of {anchor_cluster}"}
         else:
-            mge_types = load_mge_types_for_cluster(anchor_cluster)
+            mge_types = load_mge_types_for_cluster(anchor_cluster, ctx.mge_offsets)
             locus = pick_locus(loci, mge_types, genome_id)
             stem = ctx.genome_stem_map[genome_id]
             aa = extract_faa_record(stem, locus)
-            if not aa:
-                strain = {"note": f"no .faa entry for locus {locus} (missing .faa, or a refound placeholder)"}
+            nt = extract_ffn_record(stem, locus)
+            if not aa and not nt:
+                strain = {"note": f"no .faa/.ffn entry for locus {locus} (missing files, or a refound placeholder)"}
             else:
-                strain = {"genome_id": genome_id, "locus": locus, "aa": aa, "length": len(aa)}
+                strain = {"genome_id": genome_id, "locus": locus, "aa": aa, "nt": nt, "length": len(aa)}
 
     return {"cluster": anchor_cluster, "representative": representative, "strain": strain}
 
