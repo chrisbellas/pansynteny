@@ -201,6 +201,8 @@ svg { display: block; }
 .row-label { fill: var(--text-secondary); font-size: 10px; font-family: ui-monospace, monospace; }
 .col-label { fill: var(--text-secondary); font-size: 8px; font-family: ui-monospace, monospace; text-anchor: start; }
 .axis-line { stroke: var(--baseline); stroke-width: 1; }
+.ruler-axis { stroke: var(--baseline); stroke-width: 1.6; }
+.ruler-label { fill: var(--text-muted); font-size: 11px; font-family: sans-serif; text-anchor: middle; }
 .seq-line { stroke: var(--seq-line); stroke-width: 1.5; }
 .n-gap { fill: var(--n-gap); stroke: none; }
 .non-cds { stroke: none; cursor: default; }
@@ -1036,6 +1038,13 @@ function renderChart(data) {
     // Header band for the vertical per-column short-name labels (the gutter
     // columns are the same clusters in every row, so label them once at the top).
     const colLabelH = gutterClusters.length ? 54 : 0;
+    // kb ruler above the rows: since scaleX's domain tracks the genes
+    // actually present (+pad), not a fixed window, the same window size can
+    // draw at a different px-per-kb ratio chart to chart -- this gives a
+    // visible tick scale so two exports/screenshots stay comparable. 5kb
+    // ticks for the two narrowest windows, 10kb once that would crowd.
+    const rulerH = 24;
+    const rulerTickBp = windowBp <= 10000 ? 5000 : 10000;
 
     // Gene set per row within the window -- computed locally, never written
     // back onto the shared row object (the live chart and an export must run
@@ -1063,7 +1072,7 @@ function renderChart(data) {
     rowsToDraw.forEach(r => { if (!byBucket[r.sero_bucket]) byBucket[r.sero_bucket] = []; byBucket[r.sero_bucket].push(r); });
 
     const yOf = new Map();
-    let y = 10 + offsetY + colLabelH;
+    let y = 10 + offsetY + colLabelH + rulerH;
     const sections = [];
     data.sero_buckets.forEach(b => {
       const bucketRows = byBucket[b] || [];
@@ -1104,6 +1113,31 @@ function renderChart(data) {
         t.textContent = shortClusterName(cl).slice(0, 12);
         target.appendChild(t);
       });
+    }
+
+    // kb ruler: baseline + ticks at rulerTickBp intervals out from the
+    // anchor. Ticks are clipped to what actually fell inside [minX,maxX] --
+    // sparse flanking regions can leave real gene extents narrower than the
+    // window itself, and an unclipped tick there would land left of plotX0,
+    // over the row-label column.
+    {
+      const rulerY = offsetY + colLabelH + rulerH - 6;
+      target.appendChild(el("line", live
+        ? { class: "ruler-axis", x1: plotX0, x2: plotX0 + plotW, y1: rulerY, y2: rulerY }
+        : { x1: plotX0, x2: plotX0 + plotW, y1: rulerY, y2: rulerY, stroke: resolve("var(--baseline)"), "stroke-width": 1.6 }));
+      for (let v = -windowBp; v <= windowBp; v += rulerTickBp) {
+        const tx = scaleX(v);
+        if (tx < -0.5 || tx > plotW + 0.5) continue;
+        const px = plotX0 + tx;
+        target.appendChild(el("line", live
+          ? { class: "ruler-axis", x1: px, x2: px, y1: rulerY - 4, y2: rulerY + 4 }
+          : { x1: px, x2: px, y1: rulerY - 4, y2: rulerY + 4, stroke: resolve("var(--baseline)"), "stroke-width": 1.6 }));
+        const lbl = el("text", live
+          ? { class: "ruler-label", x: px, y: rulerY - 8 }
+          : { x: px, y: rulerY - 8, fill: resolve("var(--text-muted)"), "font-size": 11, "font-family": "sans-serif", "text-anchor": "middle" });
+        lbl.textContent = v === 0 ? "0" : `${v > 0 ? "+" : ""}${v / 1000}kb`;
+        target.appendChild(lbl);
+      }
     }
 
     target.appendChild(el("line", live
