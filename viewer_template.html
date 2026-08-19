@@ -306,6 +306,7 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <label class="export-toggle"><input type="checkbox" id="export-gutter" checked> Quick comparison</label>
           <button type="button" class="export-btn" id="export-selected-btn" disabled>Export selected (0)</button>
           <button type="button" class="export-btn" id="export-all-btn">Export all shown</button>
+          <button type="button" class="export-btn" id="export-contigs-btn" disabled>Export contigs (0)</button>
           <span class="export-clear disabled" id="export-clear">clear</span>
         </div>
       </div>
@@ -372,6 +373,7 @@ nGapToggle.onchange = () => {
 };
 const exportSelectedBtn = document.getElementById("export-selected-btn");
 const exportAllBtn = document.getElementById("export-all-btn");
+const exportContigsBtn = document.getElementById("export-contigs-btn");
 const exportClearEl = document.getElementById("export-clear");
 const exportFormat = document.getElementById("export-format");
 const exportGutter = document.getElementById("export-gutter");
@@ -850,6 +852,8 @@ function renderChart(data) {
     const n = selectedGenomes.size;
     exportSelectedBtn.textContent = `Export selected (${n})`;
     exportSelectedBtn.disabled = n === 0;
+    exportContigsBtn.textContent = `Export contigs (${n})`;
+    exportContigsBtn.disabled = n === 0;
     exportClearEl.classList.toggle("disabled", n === 0);
   }
   updateExportControls();
@@ -1595,8 +1599,49 @@ function renderChart(data) {
     if (node) downloadSvg(node, scope, format);
   }
 
+  // Whole-contig FASTA for the ticked genomes -- a server round-trip (unlike
+  // the SVG exports above, which are pure client-side redraws of data
+  // already fetched), since only the server has the assembly sequence
+  // (read from each genome's own GFF ##FASTA block). Raw assembly
+  // orientation, not flipped to the chart's anchor-relative display sense.
+  async function runContigExport() {
+    if (!selectedGenomes.size) return;
+    const prevLabel = exportContigsBtn.textContent;
+    exportContigsBtn.disabled = true;
+    exportContigsBtn.textContent = "Exporting…";
+    try {
+      const genomes = Array.from(selectedGenomes).join(",");
+      const resp = await fetch(`/api/export_contigs?anchor=${encodeURIComponent(data.anchor_cluster)}&genomes=${encodeURIComponent(genomes)}`);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        alert(`Contig export failed: ${err.error || resp.statusText}`);
+        return;
+      }
+      const skipped = resp.headers.get("X-Skipped-Genomes");
+      const blob = await resp.blob();
+      const cd = resp.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="([^"]+)"/);
+      const filename = m ? m[1] : `${data.anchor_cluster}_contigs.fasta`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (skipped) alert(`Contigs exported, but skipped:\n${skipped}`);
+    } catch (e) {
+      alert(`Contig export failed: ${e}`);
+    } finally {
+      exportContigsBtn.textContent = prevLabel;
+      updateExportControls();
+    }
+  }
+
   exportSelectedBtn.onclick = () => runExport("selected");
   exportAllBtn.onclick = () => runExport("all");
+  exportContigsBtn.onclick = runContigExport;
   exportClearEl.onclick = () => {
     if (!selectedGenomes.size) return;
     selectedGenomes.clear();

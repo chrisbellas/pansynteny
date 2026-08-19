@@ -453,18 +453,16 @@ def parse_gff(stem):
 MIN_N_RUN = 10
 
 
-def find_n_runs(stem, contig, min_len=MIN_N_RUN):
-    """Scaffold-gap N-runs on ONE contig of a genome's assembly.
-
-    The scaffold sequence lives in the ##FASTA block at the tail of the Prokka
-    GFF. We read only the requested contig's sequence and stop -- because the
-    anchor gene almost always sits on the first (largest) contig, this breaks
-    out after a few KB rather than reading the whole ~5.5MB file. Returns a
-    list of (start, end) 1-based inclusive coordinates for each run of >=
-    min_len N's, in contig coordinates."""
+def extract_contig_fasta(stem, contig):
+    """Full sequence of ONE contig, read from the ##FASTA block at the tail
+    of a genome's Prokka GFF (Prokka's combined-output default). We read
+    only the requested contig's records and stop -- because the anchor gene
+    almost always sits on the first (largest) contig, this breaks out after
+    a few KB rather than reading the whole ~5.5MB file. Returns "" if the
+    GFF is missing, has no ##FASTA block, or doesn't contain this contig."""
     gff = PROKKA_BASE / stem / f"{stem}.gff"
     if not gff.exists():
-        return []
+        return ""
     parts = []
     in_fasta = False
     in_target = False
@@ -481,9 +479,16 @@ def find_n_runs(stem, contig, min_len=MIN_N_RUN):
                 continue
             if in_target:
                 parts.append(line.strip())
-    if not parts:
+    return "".join(parts)
+
+
+def find_n_runs(stem, contig, min_len=MIN_N_RUN):
+    """Scaffold-gap N-runs on ONE contig of a genome's assembly. Returns a
+    list of (start, end) 1-based inclusive coordinates for each run of >=
+    min_len N's, in contig coordinates."""
+    seq = extract_contig_fasta(stem, contig)
+    if not seq:
         return []
-    seq = "".join(parts)
     return [(m.start() + 1, m.end())
             for m in re.finditer(r"[Nn]{%d,}" % min_len, seq)]
 
@@ -531,6 +536,21 @@ def load_mge_types_for_cluster(anchor_cluster):
                 continue
             types[(row["genome_id"], row["locus_tag"])] = row["mge_type"]
     return types
+
+
+def pick_locus(loci, mge_types, g):
+    """Pick a genome's locus tag for a gene cluster when Panaroo lists more
+    than one paralog copy for it (semicolon-joined loci in the CSV cell).
+    Prefer a real Prokka-called locus over a Panaroo "refound" placeholder
+    -- a refound locus has no GFF entry to resolve coordinates from at all
+    -- then, among real candidates, prefer one classified in `mge_types`
+    (a (genome_id, locus_tag) -> mge_type dict for this anchor cluster)."""
+    if len(loci) == 1:
+        return loci[0]
+    real = [lt for lt in loci if "refound" not in lt]
+    candidates = real if real else loci
+    classified = [lt for lt in candidates if (g, lt) in mge_types]
+    return classified[0] if classified else candidates[0]
 
 
 def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=False):
@@ -615,20 +635,7 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
     gff_seqlens = {g: seqlens for g, (_g, seqlens, _n) in gff_parsed.items()}
     gff_noncds = {g: non_cds for g, (_g, _s, non_cds) in gff_parsed.items()}
 
-    def pick_locus(g):
-        loci = present[g]
-        if len(loci) == 1:
-            return loci[0]
-        # Prefer a real Prokka-called locus over a Panaroo "refound"
-        # placeholder -- a refound locus has no GFF entry to resolve
-        # coordinates from at all, so picking one when a real locus is also
-        # available for this genome would drop a row we could otherwise show.
-        real = [lt for lt in loci if "refound" not in lt]
-        candidates = real if real else loci
-        classified = [lt for lt in candidates if (g, lt) in mge_types]
-        return classified[0] if classified else candidates[0]
-
-    anchor_locus = {g: pick_locus(g) for g in sample_genome_ids}
+    anchor_locus = {g: pick_locus(present[g], mge_types, g) for g in sample_genome_ids}
 
     col_for_genome = {g: stem for g, stem in stems.items()}
     reverse_map = {g: {} for g in stems}
@@ -883,6 +890,78 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
     }
 
 
+def build_contig_export(ctx, anchor_cluster, genome_ids):
+    """Multi-FASTA text: for each requested genome_id, the WHOLE contig its
+    anchor_cluster locus sits on, in raw assembly (GFF) orientation --
+    genomes anchored on the '-' strand are NOT reverse-complemented to match
+    the chart's display orientation, so this is the sequence exactly as it
+    reads in that genome's own assembly.
+
+    Deliberately re-resolves loci from a single fresh pass over the Panaroo
+    CSV rather than reusing build_chart_data's -- this is meant for the
+    handful of genomes ticked in the export-selection checkboxes, not a full
+    count-toggle sample, so redoing the (cheap, single-cluster-row) lookup
+    here avoids threading a whole chart-build's state through for what's
+    normally a handful of genomes.
+
+    Returns (fasta_text, warnings): fasta_text is None if nothing could be
+    exported at all; warnings lists one message per genome_id that couldn't
+    be resolved (not a carrier, refound-only locus, or no ##FASTA block in
+    that genome's GFF), in the caller's requested order."""
+    if anchor_cluster not in ctx.cluster_lookup:
+        return None, [f"cluster {anchor_cluster!r} not found"]
+
+    wanted = set(genome_ids)
+    mge_types = load_mge_types_for_cluster(anchor_cluster)
+
+    with open(PANAROO_CSV, newline="") as f:
+        r = csv.reader(f)
+        header = next(r)
+        genome_cols = header[3:]
+        anchor_row = None
+        for row in r:
+            if row[0] == anchor_cluster:
+                anchor_row = row
+                break
+    if anchor_row is None:
+        return None, [f"cluster {anchor_cluster!r} not found in Panaroo CSV"]
+
+    present = {}
+    for stem, cell in zip(genome_cols, anchor_row[3:]):
+        cell = cell.strip()
+        if not cell:
+            continue
+        g = ctx.stem_to_genome.get(stem)
+        if g is None or g not in wanted:
+            continue
+        present[g] = [x.strip() for x in cell.split(";") if x.strip()]
+
+    records, warnings = [], []
+    for g in genome_ids:  # preserve the caller's (selection) order
+        loci = present.get(g)
+        if not loci:
+            warnings.append(f"{g}: not a carrier of {anchor_cluster}")
+            continue
+        locus = pick_locus(loci, mge_types, g)
+        stem = ctx.genome_stem_map[g]
+        genes, _seqlens, _non_cds = parse_gff(stem)
+        if locus not in genes:
+            warnings.append(f"{g}: locus {locus} has no GFF entry (refound placeholder)")
+            continue
+        contig = genes[locus][0]
+        seq = extract_contig_fasta(stem, contig)
+        if not seq:
+            warnings.append(f"{g}: contig {contig!r} sequence not found (no ##FASTA block?)")
+            continue
+        header_line = f">{g} contig={contig} anchor={anchor_cluster} locus={locus} length={len(seq)}"
+        wrapped = "\n".join(seq[i:i + 70] for i in range(0, len(seq), 70))
+        records.append(f"{header_line}\n{wrapped}")
+
+    if not records:
+        return None, warnings or ["no exportable genomes"]
+    return "\n".join(records) + "\n", warnings
+
+
 # ---------------------------------------------------------------------------
 # HTTP server.
 # ---------------------------------------------------------------------------
@@ -899,6 +978,23 @@ def make_handler(ctx):
             self.send_response(status)
             self.send_header("Content-Type", "application/json; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def _send_download(self, text, filename, warnings=(), status=200):
+            body = text.encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "text/x-fasta; charset=utf-8")
+            self.send_header("Content-Disposition", f'attachment; filename="{filename}"')
+            self.send_header("Content-Length", str(len(body)))
+            if warnings:
+                # Surfaced by the client even though the body is a raw FASTA
+                # file, not JSON -- exposed via Access-Control-Expose-Headers
+                # since the download is fetch()'d, not a plain <a href>, so
+                # the browser hides custom response headers by default.
+                joined = "; ".join(w.replace("\r", " ").replace("\n", " ") for w in warnings)
+                self.send_header("X-Skipped-Genomes", joined)
+                self.send_header("Access-Control-Expose-Headers", "X-Skipped-Genomes")
             self.end_headers()
             self.wfile.write(body)
 
@@ -963,6 +1059,23 @@ def make_handler(ctx):
                     self._send_json(data, status=404)
                     return
                 self._send_json(data)
+                return
+
+            if parsed.path == "/api/export_contigs":
+                anchor = (qs.get("anchor", [""])[0])
+                genome_ids = [g for g in (qs.get("genomes", [""])[0]).split(",") if g]
+                if not anchor or not genome_ids:
+                    self._send_json({"error": "requires 'anchor' and 'genomes' (comma-separated) query params"}, status=400)
+                    return
+                print(f"[export] anchor={anchor!r} genomes={len(genome_ids)}", file=sys.stderr)
+                fasta_text, warnings = build_contig_export(ctx, anchor, genome_ids)
+                if fasta_text is None:
+                    self._send_json({"error": "; ".join(warnings)}, status=404)
+                    return
+                safe_anchor = re.sub(r"[^A-Za-z0-9_.-]", "_", anchor)
+                self._send_download(fasta_text, f"{safe_anchor}_contigs.fasta", warnings=warnings)
+                if warnings:
+                    print(f"[export] {len(warnings)} genome(s) skipped: {'; '.join(warnings)}", file=sys.stderr)
                 return
 
             self.send_response(404)
