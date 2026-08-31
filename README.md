@@ -1,4 +1,4 @@
-# Pangenome explorer
+# Pansynteny
 
 A local, interactive gene-order viewer for a Panaroo pangenome. Search any
 gene cluster by name or annotation, then build an anchor-gene gene-order
