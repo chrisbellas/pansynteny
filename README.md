@@ -16,10 +16,53 @@ required. No geNomad dependency.
 
 Python 3, standard library only (no pip installs).
 
+## Before you start: build the pangenome
+
+Pansynteny reads the *output* of Prokka + Panaroo -- it doesn't run either
+itself. If you don't already have these for your genome set:
+
+1. **Annotate every assembly with Prokka**, one genome per output
+   directory, each named after that genome (this is what becomes the
+   `genome_id`):
+   ```
+   for fasta in /path/to/assemblies/*.fasta; do
+     stem=$(basename "$fasta" .fasta)
+     prokka --outdir prokka_out/"$stem" --prefix "$stem" "$fasta"
+   done
+   ```
+2. **Run Panaroo across every genome's Prokka GFF** to build the
+   pangenome:
+   ```
+   panaroo -i prokka_out/*/*.gff -o panaroo_out --clean-mode strict
+   ```
+   This produces `panaroo_out/gene_presence_absence.csv`, which is what
+   `panaroo_csv` in the config points to.
+
 ## Setup
 
 Every external data path is an absolute path, given either as a CLI flag
 or in a config file -- nothing is inferred from where you put this folder.
+
+`prokka_dir` must have the layout Prokka's own `--outdir`/`--prefix`
+produces: one subdirectory per genome, named after that genome's stem,
+containing at minimum `<stem>.gff` (required -- a genome without one
+isn't viewable at all) and, optionally, `<stem>.faa`/`<stem>.ffn` (used
+for the per-strain protein/nucleotide sequence panel; the tool works
+without them, that panel just has nothing to show).
+```
+prokka_dir/
+  GENOME_A/
+    GENOME_A.gff
+    GENOME_A.faa
+    GENOME_A.ffn
+    ... (Prokka's other output files, unused)
+  GENOME_B/
+    GENOME_B.gff
+    ...
+```
+A genome is only viewable if its stem is both a genome-column header in
+`panaroo_csv` *and* has a matching `<stem>.gff` under `prokka_dir` --
+both are required, neither is inferred from the other.
 
 1. Copy `pangenome_viewer.config.example` to `pangenome_viewer.config` in
    this same directory (gitignored, since it's deployment-specific) and
