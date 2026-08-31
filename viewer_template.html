@@ -1,5 +1,5 @@
 <meta charset="utf-8">
-<title>Pangenome gene-order viewer</title>
+<title>Pangenome Synteny &amp; Feature Viewer</title>
 <style>
 :root {
   --surface-1:      #fcfcfb;
@@ -137,6 +137,7 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
 
 .status { color: var(--text-secondary); font-size: 13.5px; margin: 0 0 24px; }
 
+.legend-label { font-weight: 650; font-size: 12.5px; color: var(--text-primary); margin-bottom: 6px; }
 .legend {
   display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px 20px;
   align-items: start;
@@ -155,6 +156,12 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
   display: flex; align-items: baseline; justify-content: space-between;
   gap: 16px; flex-wrap: wrap;
 }
+.prefs-box {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 16px 12px; margin: 0 0 14px;
+}
+.prefs-box-label { font-weight: 650; font-size: 12.5px; color: var(--text-primary); margin-bottom: 8px; }
+.prefs-box-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .window-control {
   display: flex; align-items: center; gap: 7px; font-size: 12.5px;
   color: var(--text-secondary); white-space: nowrap;
@@ -165,9 +172,7 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
 }
 .export-control {
   display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); white-space: nowrap;
-  border-left: 1px solid var(--border); padding-left: 16px; margin-left: 4px;
 }
-.export-group-label { font-weight: 600; color: var(--text-primary); margin-right: 2px; }
 .export-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
 .export-btn {
   font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 6px;
@@ -180,7 +185,7 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
 
 .filter-bar {
   display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
-  margin: 0 0 18px; font-size: 12.5px; color: var(--text-secondary);
+  font-size: 12.5px; color: var(--text-secondary);
 }
 .filter-box { display: flex; align-items: center; gap: 6px; }
 .filter-box select {
@@ -291,7 +296,42 @@ svg { display: block; }
 .seq-note { color: var(--text-muted); font-size: 12px; font-style: italic; }
 
 footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
+
+.top-bar { position: fixed; top: 14px; right: 18px; z-index: 20; display: flex; align-items: center; gap: 14px; }
+.logo { display: flex; align-items: center; gap: 8px; user-select: none; }
+.logo-mark { flex: none; display: block; }
+.logo-text { font-weight: 700; font-size: 13.5px; color: var(--text-primary); letter-spacing: 0.1px; white-space: nowrap; }
+.theme-toggle-btn {
+  font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); cursor: pointer;
+}
+.theme-toggle-btn:hover { border-color: var(--accent); }
 </style>
+
+<script>
+// Restore a saved manual theme choice before first paint (best-effort --
+// this is a plain fragment with no <head>, so a brief flash on first-ever
+// visit before any choice is saved is unavoidable). Absence of a stored
+// value leaves data-theme unset, so prefers-color-scheme keeps driving it.
+(function() {
+  try {
+    var saved = localStorage.getItem("pgv_theme");
+    if (saved === "light" || saved === "dark") document.documentElement.setAttribute("data-theme", saved);
+  } catch (e) {}
+})();
+</script>
+
+<div class="top-bar">
+  <div class="logo">
+    <svg class="logo-mark" viewBox="0 0 48 20" width="48" height="20" aria-hidden="true">
+      <polygon points="0,4 8,4 12,10 8,16 0,16" fill="var(--s4)"/>
+      <polygon points="17,4 25,4 29,10 25,16 17,16" fill="var(--s1)"/>
+      <polygon points="34,4 42,4 46,10 42,16 34,16" fill="var(--s10)"/>
+    </svg>
+    <span class="logo-text">Pangenome Synteny &amp; Feature Viewer</span>
+  </div>
+  <button type="button" class="theme-toggle-btn" id="theme-toggle"></button>
+</div>
 
 <div class="wrap">
   <div class="search-bar">
@@ -310,7 +350,11 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
   <div id="chart-area" style="display:none">
     <div class="header-row">
       <h1>anchor <span class="anchor-name" id="anchor-name"></span></h1>
-      <div style="display:flex; gap:16px; flex-wrap:wrap;">
+    </div>
+
+    <div class="prefs-box">
+      <div class="prefs-box-label">Viewing preferences</div>
+      <div class="prefs-box-row">
         <div class="window-control">
           <label for="count-select">Genomes shown</label>
           <select id="count-select"></select>
@@ -340,42 +384,54 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <select id="label-col-1"></select>
           <select id="label-col-2"></select>
         </div>
-        <div class="export-control">
-          <span class="export-group-label">Export settings</span>
-          <label for="export-format">Page</label>
-          <select id="export-format">
-            <option value="screen">Screen (native)</option>
-            <option value="a4-landscape">A4 landscape</option>
-            <option value="a4-portrait">A4 portrait</option>
-          </select>
-          <label class="export-toggle"><input type="checkbox" id="export-gutter" checked> Quick comparison</label>
-          <button type="button" class="export-btn" id="export-selected-btn" disabled>Export selected (0)</button>
-          <button type="button" class="export-btn" id="export-all-btn">Export all shown</button>
-          <button type="button" class="export-btn" id="export-contigs-btn" disabled>Export contigs (0)</button>
-          <span class="export-clear disabled" id="export-clear">clear</span>
+        <div class="window-control">
+          <label>Reading direction</label>
+          <label class="export-toggle"><input type="checkbox" id="reverse-toggle"> Reverse</label>
         </div>
       </div>
     </div>
+
+    <div class="prefs-box">
+      <div class="prefs-box-label">Filter settings</div>
+      <div class="filter-bar" id="filter-bar">
+        <div class="filter-box">
+          <select class="filter-col-select"></select>
+          <select class="filter-val-select" disabled><option value="">(any)</option></select>
+          <span class="filter-box-stat"></span>
+        </div>
+        <div class="filter-box">
+          <select class="filter-col-select"></select>
+          <select class="filter-val-select" disabled><option value="">(any)</option></select>
+          <span class="filter-box-stat"></span>
+        </div>
+        <span class="filter-status" id="filter-status"></span>
+      </div>
+    </div>
+
+    <div class="prefs-box">
+      <div class="prefs-box-label">Export settings</div>
+      <div class="export-control prefs-box-row">
+        <label for="export-format">Page</label>
+        <select id="export-format">
+          <option value="screen">Screen (native)</option>
+          <option value="a4-landscape">A4 landscape</option>
+          <option value="a4-portrait">A4 portrait</option>
+        </select>
+        <label class="export-toggle"><input type="checkbox" id="export-gutter" checked> Quick comparison</label>
+        <button type="button" class="export-btn" id="export-selected-btn" disabled>Export selected (0)</button>
+        <button type="button" class="export-btn" id="export-all-btn">Export all shown</button>
+        <button type="button" class="export-btn" id="export-contigs-btn" disabled>Export contigs (0)</button>
+        <span class="export-clear disabled" id="export-clear">clear</span>
+      </div>
+    </div>
+
     <p class="subtitle" id="subtitle"></p>
     <details class="note-details" id="note-details">
       <summary>Chart notes &amp; legend key <span class="note-hint">(click to expand)</span></summary>
       <p class="note" id="note"></p>
     </details>
 
-    <div class="filter-bar" id="filter-bar">
-      <div class="filter-box">
-        <select class="filter-col-select"></select>
-        <select class="filter-val-select" disabled><option value="">(any)</option></select>
-        <span class="filter-box-stat"></span>
-      </div>
-      <div class="filter-box">
-        <select class="filter-col-select"></select>
-        <select class="filter-val-select" disabled><option value="">(any)</option></select>
-        <span class="filter-box-stat"></span>
-      </div>
-      <span class="filter-status" id="filter-status"></span>
-    </div>
-
+    <div class="legend-label">Key &mdash; RFE selected features</div>
     <div class="legend" id="legend"></div>
 
     <div class="chart-scroll">
@@ -415,6 +471,37 @@ const countSelect = document.getElementById("count-select");
 const strainOrderSelect = document.getElementById("strain-order-select");
 const nGapToggle = document.getElementById("ngap-toggle");
 const nonCdsToggle = document.getElementById("noncds-toggle");
+const reverseToggle = document.getElementById("reverse-toggle");
+
+// ---- theme toggle (light/dark) ----------------------------------------
+// data-theme unset = follow the OS/browser prefers-color-scheme (default).
+// A click pins an explicit choice and persists it; the inline restore
+// script near the top of <head> re-applies it before the chart JS runs.
+const themeToggleBtn = document.getElementById("theme-toggle");
+function effectiveTheme() {
+  const pinned = document.documentElement.getAttribute("data-theme");
+  if (pinned === "light" || pinned === "dark") return pinned;
+  return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+}
+function syncThemeButton() {
+  const t = effectiveTheme();
+  themeToggleBtn.textContent = t === "dark" ? "☀️ Light mode" : "🌙 Dark mode";
+  themeToggleBtn.title = t === "dark" ? "Switch to light mode" : "Switch to dark mode";
+}
+themeToggleBtn.onclick = () => {
+  const next = effectiveTheme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("pgv_theme", next); } catch (e) {}
+  syncThemeButton();
+};
+syncThemeButton();
+if (window.matchMedia) {
+  // Keep the button's label honest if the OS theme changes live and the
+  // user hasn't pinned a choice of their own yet.
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (!document.documentElement.getAttribute("data-theme")) syncThemeButton();
+  });
+}
 // Non-CDS feature type -> fill var. RNA genes share one hue; repeats another.
 const NC_COLOR = {
   rRNA: "var(--nc-rrna)",
@@ -835,6 +922,8 @@ function renderChart(data) {
   // Non-CDS data is always in the payload (cheap to include), so its toggle is
   // a pure client-side redraw -- no re-fetch, unlike the N-runs toggle.
   nonCdsToggle.onchange = () => draw(Number(windowSelect.value));
+  // Reverse direction is likewise a pure mirror over already-fetched data.
+  reverseToggle.onchange = () => draw(Number(windowSelect.value));
 
   // ---- genome-count dropdown: changing this re-fetches from the server ----
   countSelect.innerHTML = "";
@@ -1211,7 +1300,20 @@ function renderChart(data) {
     });
     if (!isFinite(minX)) { minX = -windowBp; maxX = windowBp; }
     minX -= pad; maxX += pad;
-    const scaleX = x => (x - minX) / (maxX - minX) * plotW;
+    // Reverse direction: a straight horizontal mirror of the plot (like an
+    // IGV "flip strand"), read live off the toggle so it applies to both the
+    // on-screen chart and every export without being threaded through opts.
+    // scaleX becomes monotonically decreasing when mirrored, so any code that
+    // turns two scaleX(...) calls into a [left,right] span (a gene, a non-CDS
+    // feature, an N-run, the contig baseline) must go through spanX below
+    // rather than assuming scaleX(start) <= scaleX(end).
+    const reversed = reverseToggle.checked;
+    const scaleX = reversed
+      ? x => (maxX - x) / (maxX - minX) * plotW
+      : x => (x - minX) / (maxX - minX) * plotW;
+    // Sorts a genomic [lo,hi] span's two screen-space endpoints so callers
+    // always get back [left,right] regardless of mirroring.
+    const spanX = (lo, hi) => { const a = scaleX(lo), b = scaleX(hi); return a <= b ? [a, b] : [b, a]; };
 
     const byBucket = {};
     data.sero_buckets.forEach(b => byBucket[b] = []);
@@ -1342,9 +1444,10 @@ function renderChart(data) {
         const segStart = Math.max(r.contig_rel_start, -windowBp);
         const segEnd = Math.min(r.contig_rel_end, windowBp);
         if (segEnd > segStart) {
+          const [sx1, sx2] = spanX(segStart, segEnd);
           target.appendChild(el("line", live
-            ? { class: "seq-line", x1: plotX0 + scaleX(segStart), x2: plotX0 + scaleX(segEnd), y1: rowY + rowH / 2, y2: rowY + rowH / 2 }
-            : { x1: plotX0 + scaleX(segStart), x2: plotX0 + scaleX(segEnd), y1: rowY + rowH / 2, y2: rowY + rowH / 2, stroke: resolve("var(--seq-line)"), "stroke-width": 1.5 }));
+            ? { class: "seq-line", x1: plotX0 + sx1, x2: plotX0 + sx2, y1: rowY + rowH / 2, y2: rowY + rowH / 2 }
+            : { x1: plotX0 + sx1, x2: plotX0 + sx2, y1: rowY + rowH / 2, y2: rowY + rowH / 2, stroke: resolve("var(--seq-line)"), "stroke-width": 1.5 }));
         }
       }
 
@@ -1356,8 +1459,9 @@ function renderChart(data) {
       (r.n_runs || []).forEach(nr => {
         const s = Math.max(nr.start, minX), e = Math.min(nr.end, maxX);
         if (e <= s) return;
-        const bx = plotX0 + scaleX(s);
-        const bw = Math.max(4, scaleX(e) - scaleX(s));
+        const [bx1, bx2] = spanX(s, e);
+        const bx = plotX0 + bx1;
+        const bw = Math.max(4, bx2 - bx1);
         target.appendChild(el("rect", live
           ? { class: "n-gap", x: bx, y: rowY + 2, width: bw, height: rowH - 4 }
           : { x: bx, y: rowY + 2, width: bw, height: rowH - 4, fill: resolve("var(--n-gap)") }));
@@ -1368,8 +1472,9 @@ function renderChart(data) {
       nonCdsInWindow(r).forEach(f => {
         const s = Math.max(f.start, minX), e = Math.min(f.end, maxX);
         if (e <= s) return;
-        const nx = plotX0 + scaleX(s);
-        const nw = Math.max(2.5, scaleX(e) - scaleX(s));
+        const [nx1, nx2] = spanX(s, e);
+        const nx = plotX0 + nx1;
+        const nw = Math.max(2.5, nx2 - nx1);
         const nh = rowH * 0.42;
         const nyTop = rowY + (rowH - nh) / 2;
         const ncColor = NC_COLOR[f.ftype] || "var(--nc-repeat)";
@@ -1387,7 +1492,8 @@ function renderChart(data) {
       });
 
       genesInWindow(r).forEach(g => {
-        const x1 = plotX0 + scaleX(g.start), x2 = plotX0 + scaleX(g.end);
+        const [x1r, x2r] = spanX(g.start, g.end);
+        const x1 = plotX0 + x1r, x2 = plotX0 + x2r;
         const w = Math.max(1.4, x2 - x1);
         const h = rowH * 0.62;
         const yTop = rowY + (rowH - h) / 2;
@@ -1399,7 +1505,11 @@ function renderChart(data) {
         else if (g.is_rfe) { cls = "rfe-other"; fill = "var(--rfe-other-fill)"; stroke = "var(--rfe-other-stroke)"; }
         else { fill = "var(--other-fill)"; stroke = "var(--other-stroke)"; }
 
-        const points = g.strand === "+"
+        // Mirroring the plot also reverse-complements it, so the arrowhead
+        // flips to the gene's other end (its true strand, g.strand, is left
+        // untouched everywhere else -- tooltips still report real biology).
+        const drawStrand = reversed ? (g.strand === "+" ? "-" : "+") : g.strand;
+        const points = drawStrand === "+"
           ? `${x1},${yTop} ${x1 + w - headLen},${yTop} ${x1 + w},${yTop + h/2} ${x1 + w - headLen},${yTop + h} ${x1},${yTop + h}`
           : `${x1 + headLen},${yTop} ${x1 + w},${yTop} ${x1 + w},${yTop + h} ${x1 + headLen},${yTop + h} ${x1},${yTop + h/2}`;
 
