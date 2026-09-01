@@ -27,7 +27,18 @@ metadata_h_antigen_col = H Antigen(Serotype Prediction)
 metadata_source_col = Source Type
 
 # --- optional: RFE feature-importance coloring (expects a tab-delimited
-# file with "feature" and "importance" columns) ---
+# file with a "feature" column (required -- the Panaroo cluster name,
+# possibly "~~~"-merged) plus "importance" and "Annotation" (both
+# optional, and independent of each other -- "Annotation" is a curated
+# short name, e.g. "nleC", that supersedes the Prokka annotation in the
+# legend/tooltip/search when present; note the capital A, a lowercase
+# "annotation" column is not read). Any other columns present are just
+# ignored, e.g.:
+#
+#   feature       importance          Annotation
+#   group_10695   0.012300539192215   nleC
+#
+# ) ---
 rfe_features_txt =
 
 # --- optional: MGE-type labels/copy-selection preference (expects a
