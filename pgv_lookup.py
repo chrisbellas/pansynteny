@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-A present to myself: instant single-cluster/single-genome spot-checks,
+Instant single-cluster/single-genome spot-checks,
 without re-scanning a huge Panaroo CSV from scratch every time.
 
 Builds a one-time byte-offset index (cluster_name -> file offset of its

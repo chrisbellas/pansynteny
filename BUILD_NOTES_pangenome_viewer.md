@@ -131,8 +131,8 @@ one-off inverted flip was never inherited here.
      one `different_contig` case (`group_4873` in `ESC_AC5833AA_AS`)
      confirmed via direct GFF lookup that it resolves to a different
      Prokka contig than espK's own locus in that same genome.
-5. **Page width (2026-07-24, user follow-up: "why doesn't it stretch
-   across my whole monitor").** `.wrap`'s CSS `max-width` was widened
+5. **Page width (2026-07-24, user follow-up: "stretch
+   across whole screen").** `.wrap`'s CSS `max-width` was widened
    1520px -> 1800px — chosen specifically because the chart SVG's full
    pixel width (`labelW + plotW + gutterW + 20` = 1730px) now fits inside
    1800px without needing horizontal scroll on any monitor >=1778px wide.
@@ -140,11 +140,6 @@ one-off inverted flip was never inherited here.
    -resize (offered as an option, user picked the simpler fix) — the gene
    track stays a fixed 1280px regardless of window size, only the outer
    page's blank margins shrink/grow.
-6. **No git repo in this directory, deliberately** — rollback is via the
-   numbered `.bak`/`.bak2`/`.bak3` file pairs (see the Files table above),
-   not version control. If a future change should get finer-grained
-   rollback than "restore one of the 3 checkpoints," consider `git init`
-   at that point rather than continuing to hand-number backups.
 
 7. **Scaffold-gap (N-run) bands (2026-08-13, user request "scan for scaffolds
    (runs of NNNN) and flag this on the maps").** Shaded bands mark runs of N —
