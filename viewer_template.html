@@ -136,6 +136,24 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
 .search-empty { padding: 14px; color: var(--text-muted); font-size: 12.5px; }
 
 .status { color: var(--text-secondary); font-size: 13.5px; margin: 0 0 24px; }
+/* Indeterminate progress bar while a chart is building -- there's no real
+   percentage to report (the server scan time depends on genome count and
+   is a black box from here), so a bar that visibly keeps moving back and
+   forth is the honest signal: still working, not hung. */
+.progress-bar {
+  display: none; position: relative; height: 6px; border-radius: 3px;
+  background: var(--border); overflow: hidden; margin: -16px 0 24px;
+}
+.progress-bar.active { display: block; }
+.progress-bar-fill {
+  position: absolute; top: 0; bottom: 0; width: 28%; border-radius: 3px;
+  background: var(--accent);
+  animation: progress-slide 0.9s ease-in-out infinite alternate;
+}
+@keyframes progress-slide {
+  from { left: 0%; }
+  to   { left: 72%; }
+}
 
 .legend-label { font-weight: 650; font-size: 12.5px; color: var(--text-primary); margin-bottom: 6px; }
 .legend {
@@ -157,9 +175,18 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
   gap: 16px; flex-wrap: wrap;
 }
 .prefs-box {
-  background: var(--surface-1); border: 1px solid var(--border); border-radius: 8px;
+  /* Distinct from both the page behind it and the --surface-1 controls
+     inside it -- groups each settings block visually, and as a side effect
+     gives the toggle buttons something to contrast against (they sit on
+     plain --surface-1, one step lighter than this). Each box below tints
+     toward a different one of the categorical swatch colors, so the three
+     read apart at a glance rather than all sharing one wash. */
+  border: 1px solid var(--border); border-radius: 8px;
   padding: 10px 16px 12px; margin: 0 0 14px;
 }
+.prefs-box-viewing { background: color-mix(in srgb, var(--surface-1) 82%, var(--s1) 18%); }
+.prefs-box-filter  { background: color-mix(in srgb, var(--surface-1) 82%, var(--s4) 18%); }
+.prefs-box-export  { background: color-mix(in srgb, var(--surface-1) 82%, var(--s5) 18%); }
 .prefs-box-label { font-weight: 650; font-size: 12.5px; color: var(--text-primary); margin-bottom: 8px; }
 .prefs-box-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
 .window-control {
@@ -173,7 +200,28 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
 .export-control {
   display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); white-space: nowrap;
 }
-.export-toggle { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+/* A pressable button, not a checkbox-with-label: the native checkbox is kept
+   (still fully readable/settable as .checked from JS, still keyboard-
+   focusable/toggleable) but visually hidden, and the label itself takes on
+   the pressed/depressed look via :has(input:checked) when it's on. */
+.export-toggle {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;
+  font-size: 12.5px; font-weight: 560; padding: 4px 10px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+  /* Raised, so it reads as pressable before you've ever pressed it --
+     without this it was flush with its own faint gap of border, easy to
+     mistake for plain text next to a checkbox. */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.export-toggle:hover { border-color: var(--accent); }
+.export-toggle:has(input:checked) {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+  /* Pressed-in: the raised shadow above is replaced by an inset one, and a
+     tiny downward nudge reinforces the "pushed" feel. */
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  transform: translateY(0.5px);
+}
+.export-toggle input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
 .export-btn {
   font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 6px;
   border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); cursor: pointer;
@@ -214,25 +262,38 @@ svg { display: block; }
 .non-cds { stroke: none; cursor: default; }
 .anchor-line { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 3; }
 .gene-link { stroke: none; opacity: 0.35; pointer-events: none; }
-.gene-link-skip { fill: none; stroke-width: 1.6; pointer-events: none; }
+.gene-link-skip { fill: none; stroke-width: 3; pointer-events: none; }
+/* Clicking a gene (with "Connect matching genes" on) lights up every ribbon
+   and skip-line for that same cluster, not just the clicked gene itself --
+   full opacity, an outline on the ribbons, and a bump in width on the skip
+   lines, undoing their normal per-instance fade/thinness (!important
+   because that fade is set inline, per-instance, in JS). */
+.gene-link.pinned { opacity: 1; stroke: var(--text-primary); stroke-width: 1; }
+.gene-link-skip.pinned { opacity: 1 !important; stroke-width: 4.5 !important; }
 
 .gene-arrow { stroke-width: 0.75; cursor: pointer; }
 .gene-arrow.other { fill: var(--other-fill); stroke: var(--other-stroke); }
 .gene-arrow.rfe-other { fill: var(--rfe-other-fill); stroke: var(--rfe-other-stroke); }
 .gene-arrow.anchor { fill: var(--anchor-fill); stroke: var(--anchor-stroke); }
-.gene-arrow.pinned { stroke: #ffffff !important; stroke-width: 2px !important; }
+/* --text-primary is near-black in light mode, white in dark -- a fixed
+   white border was invisible against the near-white light-mode background,
+   so this now tracks the theme instead of hardcoding dark mode's color. */
+.gene-arrow.pinned { stroke: var(--text-primary) !important; stroke-width: 3px !important; }
 
 .marker-sq { stroke-width: 1.3; cursor: pointer; }
 .marker-sq.marker-visible { stroke: none; }
 .marker-sq.marker-diff { stroke-dasharray: none; }
 .marker-sq.marker-same-contig { stroke-dasharray: none; stroke-width: 1.8; }
 .marker-sq.marker-refound { stroke-dasharray: none; stroke-width: 1.8; }
-.marker-sq.pinned { stroke: #ffffff !important; stroke-width: 2.5px !important; }
+.marker-sq.pinned { stroke: var(--text-primary) !important; stroke-width: 2.5px !important; }
 
 .row-check { fill: transparent; stroke: var(--other-stroke); stroke-width: 1.2; cursor: pointer; }
 .row-check:hover { stroke: var(--accent); }
 .row-check.checked { fill: var(--accent); stroke: var(--accent); }
 .row-check-tick { stroke: var(--surface-1); stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.reorder-arrow { fill: var(--text-secondary); cursor: pointer; }
+.reorder-arrow:hover { fill: var(--accent); }
+.reorder-arrow.disabled { fill: var(--text-muted); opacity: 0.35; cursor: default; pointer-events: none; }
 
 .marker-swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--other-fill); flex: none; margin-top: 2px; }
 .marker-swatch.state-visible { border: none; }
@@ -252,6 +313,7 @@ svg { display: block; }
 }
 #tooltip .tt-title { font-weight: 650; margin-bottom: 2px; }
 #tooltip .tt-row { color: var(--text-muted); }
+#tooltip .tt-hint { font-style: italic; margin-top: 3px; }
 
 /* ---- gene sequence panel (double-click a gene) ---- */
 .seq-panel-backdrop {
@@ -349,13 +411,14 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
     RFE-important flanking genes colored) &mdash; same chart style as the LEE/espK/sopA/derep_00002
     charts, built on demand for any gene instead of one script per gene.
   </p>
+  <div class="progress-bar" id="progress-bar"><div class="progress-bar-fill"></div></div>
 
   <div id="chart-area" style="display:none">
     <div class="header-row">
       <h1>anchor <span class="anchor-name" id="anchor-name"></span></h1>
     </div>
 
-    <div class="prefs-box">
+    <div class="prefs-box prefs-box-viewing">
       <div class="prefs-box-label">Viewing preferences</div>
       <div class="prefs-box-row">
         <div class="window-control">
@@ -398,7 +461,7 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
       </div>
     </div>
 
-    <div class="prefs-box">
+    <div class="prefs-box prefs-box-filter">
       <div class="prefs-box-label">Filter settings</div>
       <div class="filter-bar" id="filter-bar">
         <div class="filter-box">
@@ -411,11 +474,12 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <select class="filter-val-select" disabled><option value="">(any)</option></select>
           <span class="filter-box-stat"></span>
         </div>
+        <label class="export-toggle"><input type="checkbox" id="selected-filter-toggle"> Selected genomes only</label>
         <span class="filter-status" id="filter-status"></span>
       </div>
     </div>
 
-    <div class="prefs-box">
+    <div class="prefs-box prefs-box-export">
       <div class="prefs-box-label">Export settings</div>
       <div class="export-control prefs-box-row">
         <label for="export-format">Page</label>
@@ -472,6 +536,7 @@ const NS = "http://www.w3.org/2000/svg";
 const searchInput = document.getElementById("search-input");
 const searchResults = document.getElementById("search-results");
 const statusEl = document.getElementById("status");
+const progressBar = document.getElementById("progress-bar");
 const chartArea = document.getElementById("chart-area");
 const svg = document.getElementById("chart");
 const tooltip = document.getElementById("tooltip");
@@ -543,6 +608,7 @@ const filterColSelects = document.querySelectorAll(".filter-col-select");
 const filterValSelects = document.querySelectorAll(".filter-val-select");
 const filterBoxStats = document.querySelectorAll(".filter-box-stat");
 const filterStatusEl = document.getElementById("filter-status");
+const selectedFilterToggle = document.getElementById("selected-filter-toggle");
 const FILTER_BLANK = "__pgv_blank__"; // sentinel for "column is empty", distinct from "" (= no filter set)
 
 // Cohort-wide (anchor-independent) metadata value totals -- fetched once,
@@ -833,6 +899,11 @@ function selectCluster(cluster) {
   filterColSelects.forEach(sel => { sel.value = ""; });
   filterValSelects.forEach(sel => { sel.innerHTML = '<option value="">(any)</option>'; sel.disabled = true; });
   filterBoxStats.forEach(el => { el.textContent = ""; });
+  // selectedGenomes itself is a fresh Set every render (declared inside
+  // renderChart), but this checkbox isn't -- leaving it checked into a
+  // brand-new anchor would filter the new chart down to an empty
+  // selection and silently show nothing.
+  selectedFilterToggle.checked = false;
   buildChart(cluster, null);
 }
 
@@ -847,6 +918,7 @@ function buildChart(cluster, count) {
   statusEl.textContent = `Building chart for ${cluster}… (scans the full pangenome table plus one genome ` +
     `annotation file per genome shown -- larger genome counts take longer, "all" on a common gene can take ` +
     `a few minutes)`;
+  progressBar.classList.add("active");
   let url = "/api/chart?anchor=" + encodeURIComponent(cluster);
   if (count) url += "&count=" + encodeURIComponent(count);
   if (nGapToggle.checked) url += "&n_runs=1";
@@ -855,13 +927,18 @@ function buildChart(cluster, count) {
     .then(data => {
       if (data.error) {
         statusEl.textContent = "Error: " + data.error;
+        progressBar.classList.remove("active");
         return;
       }
       statusEl.style.display = "none";
+      progressBar.classList.remove("active");
       chartArea.style.display = "block";
       renderChart(data);
     })
-    .catch(err => { statusEl.textContent = "Build failed: " + String(err); });
+    .catch(err => {
+      statusEl.textContent = "Build failed: " + String(err);
+      progressBar.classList.remove("active");
+    });
 }
 
 // ---- chart rendering ----
@@ -1010,6 +1087,7 @@ function renderChart(data) {
   }
 
   function passesFilters(r) {
+    if (selectedFilterToggle.checked && !selectedGenomes.has(r.genome_id)) return false;
     for (let i = 0; i < filterColSelects.length; i++) {
       const col = filterColSelects[i].value;
       const filterVal = filterValSelects[i].value;
@@ -1052,6 +1130,7 @@ function renderChart(data) {
   filterValSelects.forEach((sel, i) => {
     sel.onchange = () => { updateFilterStat(i); draw(Number(windowSelect.value)); };
   });
+  selectedFilterToggle.onchange = () => draw(Number(windowSelect.value));
 
   // ---- row-label extra columns (up to two metadata columns after the name) ----
   function populateLabelColumnOptions() {
@@ -1094,6 +1173,29 @@ function renderChart(data) {
   // Persists across window/filter redraws on this chart; reset per new anchor
   // (in selectCluster). Keyed by genome_id.
   const selectedGenomes = new Set();
+  // Custom display order for the "Selected genomes only" view -- an array
+  // (not just the Set above) specifically so the up/down reorder arrows
+  // have something to swap. Kept in sync with selectedGenomes on every
+  // tick/untick: ids no longer selected drop out, newly-ticked ones are
+  // appended at the end, everything else keeps its relative position.
+  let selectedOrder = [];
+  function syncSelectedOrder() {
+    selectedOrder = selectedOrder.filter(id => selectedGenomes.has(id));
+    selectedGenomes.forEach(id => { if (!selectedOrder.includes(id)) selectedOrder.push(id); });
+  }
+  // Swaps two genome_ids' positions in selectedOrder, given as the two ids
+  // that are actually adjacent on screen right now -- not a raw +-1 index
+  // step in selectedOrder, since another active column/value filter can
+  // narrow what's *visible* to fewer than everything selected, and a plain
+  // index swap there could land on an entry that's currently hidden (the
+  // arrow click would change data but the two visible rows wouldn't
+  // visibly move at all).
+  function moveSelected(idA, idB) {
+    const i = selectedOrder.indexOf(idA), j = selectedOrder.indexOf(idB);
+    if (i < 0 || j < 0) return;
+    [selectedOrder[i], selectedOrder[j]] = [selectedOrder[j], selectedOrder[i]];
+    draw(Number(windowSelect.value));
+  }
   function updateExportControls() {
     const n = selectedGenomes.size;
     exportSelectedBtn.textContent = `Export selected (${n})`;
@@ -1204,7 +1306,11 @@ function renderChart(data) {
           `<div class="tt-row">${kind}</div>`
         : `<div class="tt-title">${escapeHtml(g.product)}</div>` +
           `<div class="tt-row">${escapeHtml(g.cluster)} · ${kind}</div>`) +
-      `<div class="tt-row">strand ${g.strand} · ${g.start} to ${g.end} (rel. to anchor)</div>`;
+      `<div class="tt-row">strand ${g.strand} · ${g.start} to ${g.end} (rel. to anchor)</div>` +
+      // Double-click is a no-op on an unclustered ("NA") gene -- see the
+      // matching guard on the dblclick handler -- so the hint would be a
+      // false promise there and is left off.
+      (g.cluster !== "NA" ? `<div class="tt-row tt-hint">double click to view sequence</div>` : "");
     tooltip.style.display = "block";
     positionTooltip(ev);
   }
@@ -1240,7 +1346,10 @@ function renderChart(data) {
   let pinnedCluster = null;
   function applyPin(cluster) {
     pinnedCluster = cluster;
-    svg.querySelectorAll(".gene-arrow, .marker-sq").forEach(e => {
+    // .gene-link/.gene-link-skip only exist in the DOM at all when "Connect
+    // matching genes" is on, so this is a no-op (matches nothing extra)
+    // whenever that toggle is off.
+    svg.querySelectorAll(".gene-arrow, .marker-sq, .gene-link, .gene-link-skip").forEach(e => {
       e.classList.toggle("pinned", !!cluster && e.dataset.cluster === cluster);
     });
     legend.querySelectorAll("[data-cluster]").forEach(e => {
@@ -1270,6 +1379,12 @@ function renderChart(data) {
     const offsetY = opts.offsetY || 0;
     const rowsToDraw = opts.rows;
     const extentRows = opts.extentRows || rowsToDraw;
+    // "Selected genomes only" + reorder arrows: draw as one flat block in
+    // exactly the given order, instead of grouped/re-sorted into serotype
+    // sections -- section grouping would silently undo a manual reorder
+    // (a row "moved up" could jump to a different section and not visibly
+    // move), so it's turned off for as long as this view is active.
+    const flatOrder = !!opts.flatOrder;
 
     const rowH = 20, rowGap = 2;
     // Header band above each serotype block, and a blank gap between blocks.
@@ -1284,7 +1399,7 @@ function renderChart(data) {
     const gutterW = markerLeftPad + gutterClusters.length * (markerSize + markerGap);
     const plotW = opts.plotW ?? 1280, pad = opts.pad ?? 800;
     const plotX0 = labelW;
-    const labelX = live ? 19 : 10;
+    const labelX = live ? (flatOrder ? 37 : 19) : 10;
     const gutterX0 = plotX0 + plotW + markerLeftPad;
     // Header band for the vertical per-column short-name labels (the gutter
     // columns are the same clusters in every row, so label them once at the top).
@@ -1331,9 +1446,15 @@ function renderChart(data) {
     // always get back [left,right] regardless of mirroring.
     const spanX = (lo, hi) => { const a = scaleX(lo), b = scaleX(hi); return a <= b ? [a, b] : [b, a]; };
 
+    const FLAT_BUCKET = "__flat__";
+    const bucketNames = flatOrder ? [FLAT_BUCKET] : data.sero_buckets;
     const byBucket = {};
-    data.sero_buckets.forEach(b => byBucket[b] = []);
-    rowsToDraw.forEach(r => { if (!byBucket[r.sero_bucket]) byBucket[r.sero_bucket] = []; byBucket[r.sero_bucket].push(r); });
+    if (flatOrder) {
+      byBucket[FLAT_BUCKET] = rowsToDraw.slice();   // already in the caller's chosen order
+    } else {
+      data.sero_buckets.forEach(b => byBucket[b] = []);
+      rowsToDraw.forEach(r => { if (!byBucket[r.sero_bucket]) byBucket[r.sero_bucket] = []; byBucket[r.sero_bucket].push(r); });
+    }
 
     // Gene-link ribbons (read live off the toggle, same pattern as `reversed`
     // above, so it applies to on-screen and export alike). Rows need extra
@@ -1346,7 +1467,7 @@ function renderChart(data) {
     let y = 10 + offsetY + colLabelH + rulerH;
     const sections = [];
     const drawnOrder = [];   // every row, in the exact order it's stacked top-to-bottom, across all sections
-    data.sero_buckets.forEach(b => {
+    bucketNames.forEach(b => {
       const bucketRows = byBucket[b] || [];
       if (!bucketRows.length) return;
       if (sections.length) y += sectionGap;   // blank line between blocks
@@ -1357,7 +1478,10 @@ function renderChart(data) {
         drawnOrder.push(r);
         y += rowH + rowGap + connectGap;
       });
-      sections.push({ label: b, count: bucketRows.length, top: sectionTop, rowsEnd: y - rowGap - connectGap });
+      sections.push({
+        label: flatOrder ? "Selected genomes (custom order)" : b,
+        count: bucketRows.length, top: sectionTop, rowsEnd: y - rowGap - connectGap,
+      });
     });
     const totalH = y + 20;
     const totalW = labelW + plotW + gutterW + 20;
@@ -1478,9 +1602,10 @@ function renderChart(data) {
         let line;
         if (live) {
           line = el("line", { class: "gene-link-skip", x1, y1, x2, y2 });
+          line.dataset.cluster = gBelow.cluster;
           line.setAttribute("style", `stroke:${color};opacity:${op}`);
         } else {
-          line = el("line", { x1, y1, x2, y2, stroke: color, "stroke-width": 1.6, opacity: op });
+          line = el("line", { x1, y1, x2, y2, stroke: color, "stroke-width": 3, opacity: op });
         }
         target.appendChild(line);
       });
@@ -1495,6 +1620,7 @@ function renderChart(data) {
         let ribbon;
         if (live) {
           ribbon = el("polygon", { class: "gene-link", points });
+          ribbon.dataset.cluster = gBelow.cluster;
           ribbon.setAttribute("style", `fill:${color}`);
         } else {
           ribbon = el("polygon", { points, fill: color, opacity: 0.35 });
@@ -1502,6 +1628,10 @@ function renderChart(data) {
         target.appendChild(ribbon);
       });
     }
+
+    // Row index within the current flat order, for the up/down reorder
+    // arrows' boundary checks (built once, not per-row).
+    const flatIndex = flatOrder ? new Map(rowsToDraw.map((rr, i) => [rr, i])) : null;
 
     rowsToDraw.forEach(r => {
       const rowY = yOf.get(r);
@@ -1518,12 +1648,45 @@ function renderChart(data) {
           if (on) selectedGenomes.add(r.genome_id); else selectedGenomes.delete(r.genome_id);
           box.classList.toggle("checked", on);
           tick.style.display = on ? "" : "none";
+          syncSelectedOrder();
           updateExportControls();
+          // "Selected genomes only" is a live display filter, not just an
+          // export-scope marker -- so unticking a row while it's on has to
+          // make that row (and its gene links, recomputed against the new
+          // row set) disappear immediately, not just on the next unrelated
+          // redraw.
+          if (selectedFilterToggle.checked) draw(Number(windowSelect.value));
         };
         box.addEventListener("click", toggle);
         tick.addEventListener("click", toggle);
         target.appendChild(box);
         target.appendChild(tick);
+
+        // Reorder arrows: live-view-only (never in an export -- there's no
+        // click handler to wire up in a static file, and the buttons would
+        // just be dead chrome), and only while "Selected genomes only" has
+        // flattened the view into one manually-orderable block. Up sits
+        // right after the checkbox (larger, so it's an easier target); down
+        // sits past the genome-ID text instead of stacked under up, so the
+        // two aren't crowded on top of each other.
+        if (flatOrder) {
+          const idx = flatIndex.get(r);
+          const midY = rowY + rowH / 2;
+          const upX = 27;
+          const up = el("polygon", {
+            class: "reorder-arrow" + (idx === 0 ? " disabled" : ""),
+            points: `${upX},${midY - 9} ${upX - 5.5},${midY - 1.5} ${upX + 5.5},${midY - 1.5}`,
+          });
+          const downX = labelX + measureApprox(rowLabelText(r)) + 8;
+          const down = el("polygon", {
+            class: "reorder-arrow" + (idx === rowsToDraw.length - 1 ? " disabled" : ""),
+            points: `${downX},${midY + 9} ${downX - 5.5},${midY + 1.5} ${downX + 5.5},${midY + 1.5}`,
+          });
+          if (idx > 0) up.addEventListener("click", (ev) => { ev.stopPropagation(); moveSelected(r.genome_id, rowsToDraw[idx - 1].genome_id); });
+          if (idx < rowsToDraw.length - 1) down.addEventListener("click", (ev) => { ev.stopPropagation(); moveSelected(r.genome_id, rowsToDraw[idx + 1].genome_id); });
+          target.appendChild(up);
+          target.appendChild(down);
+        }
       }
 
       if (live) {
@@ -1695,11 +1858,21 @@ function renderChart(data) {
     pinnedCluster = null;
     // Filter boxes narrow which of the already-fetched `rows` get drawn --
     // purely a display-time restriction, no re-fetch.
-    const shown = rows.filter(passesFilters);
+    let shown = rows.filter(passesFilters);
+    // "Selected genomes only": free-form reorder via the up/down arrows,
+    // instead of the usual carrier-count/serotype-bucketed order. Applies
+    // to export too (same read-the-checkbox-live pattern as reversed/
+    // connectOn) -- only the arrow controls themselves are live-only.
+    const reorderable = selectedFilterToggle.checked;
+    if (reorderable) {
+      syncSelectedOrder();
+      const orderIndex = new Map(selectedOrder.map((id, i) => [id, i]));
+      shown = shown.slice().sort((a, b) => orderIndex.get(a.genome_id) - orderIndex.get(b.genome_id));
+    }
     filterStatusEl.textContent = (shown.length === rows.length)
       ? ""
       : `${shown.length} of ${rows.length} sampled genomes match the filter${filterColSelects.length > 1 ? "s" : ""}`;
-    const dim = renderTracks(svg, { rows: shown, extentRows: shown, windowBp, live: true });
+    const dim = renderTracks(svg, { rows: shown, extentRows: shown, windowBp, live: true, flatOrder: reorderable });
     svg.setAttribute("width", dim.width);
     svg.setAttribute("height", dim.height);
     svg.setAttribute("viewBox", `0 0 ${dim.width} ${dim.height}`);
@@ -1851,7 +2024,16 @@ function renderChart(data) {
   };
 
   function exportSvg(scope, format) {
-    const shown = rows.filter(passesFilters);
+    let shown = rows.filter(passesFilters);
+    // Same reorder-when-checked logic as draw() -- the up/down arrows
+    // themselves are live-only UI, but the custom order they produce
+    // carries into export just like every other display toggle here does.
+    const reorderable = selectedFilterToggle.checked;
+    if (reorderable) {
+      syncSelectedOrder();
+      const orderIndex = new Map(selectedOrder.map((id, i) => [id, i]));
+      shown = shown.slice().sort((a, b) => orderIndex.get(a.genome_id) - orderIndex.get(b.genome_id));
+    }
     const exportRows = (scope === "selected")
       ? shown.filter(r => selectedGenomes.has(r.genome_id))
       : shown;
@@ -1912,7 +2094,7 @@ function renderChart(data) {
     const tracksTop = legendTop + legend.height + 12;
     const tracksG = el("g", { transform: `translate(${margin}, 0)` });
     out.appendChild(tracksG);
-    const dim = renderTracks(tracksG, { rows: exportRows, extentRows: p ? exportRows : shown, windowBp, live: false, resolve, offsetY: tracksTop, labelW, plotW, maxGutter, pad, markerLeftPad: markLP, sectionHeaderH: 16, sectionGap: 12 });
+    const dim = renderTracks(tracksG, { rows: exportRows, extentRows: p ? exportRows : shown, windowBp, live: false, resolve, offsetY: tracksTop, labelW, plotW, maxGutter, pad, markerLeftPad: markLP, sectionHeaderH: 16, sectionGap: 12, flatOrder: reorderable });
 
     const canvasW = chartW + margin * 2;
     const canvasH = dim.height + margin;
@@ -2034,6 +2216,7 @@ function renderChart(data) {
   exportClearEl.onclick = () => {
     if (!selectedGenomes.size) return;
     selectedGenomes.clear();
+    selectedOrder = [];
     updateExportControls();
     draw(Number(windowSelect.value));
   };
