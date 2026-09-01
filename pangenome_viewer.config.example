@@ -32,7 +32,12 @@ rfe_features_txt =
 
 # --- optional: MGE-type labels/copy-selection preference (expects a
 # tab-delimited file with pangenome_gene_cluster/genome_id/locus_tag/
-# mge_type columns) ---
+# mge_type columns -- any other columns present are just ignored, e.g.:
+#
+#   pangenome_gene_cluster  genome_id       locus_tag       mge_type
+#   group_10918             ESC_AA7970AA_AS HJIKEAHO_00003  virus
+#
+# ) ---
 mge_genes_tsv =
 
 # --- optional: cosmetic only -- comma-separated suffixes to strip from a
