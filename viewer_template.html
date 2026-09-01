@@ -180,6 +180,7 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
 }
 .export-btn:hover:not(:disabled) { border-color: var(--accent); }
 .export-btn:disabled { opacity: 0.45; cursor: default; }
+.export-btn.preview-btn { border-style: dashed; background: transparent; }
 .export-clear { font-size: 12px; color: var(--accent); cursor: pointer; user-select: none; }
 .export-clear.disabled { color: var(--text-muted); cursor: default; }
 
@@ -212,6 +213,8 @@ svg { display: block; }
 .n-gap { fill: var(--n-gap); stroke: none; }
 .non-cds { stroke: none; cursor: default; }
 .anchor-line { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.gene-link { stroke: none; opacity: 0.35; pointer-events: none; }
+.gene-link-skip { fill: none; stroke-width: 1.6; pointer-events: none; }
 
 .gene-arrow { stroke-width: 0.75; cursor: pointer; }
 .gene-arrow.other { fill: var(--other-fill); stroke: var(--other-stroke); }
@@ -388,6 +391,10 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <label>Reading direction</label>
           <label class="export-toggle"><input type="checkbox" id="reverse-toggle"> Reverse</label>
         </div>
+        <div class="window-control">
+          <label>Gene links</label>
+          <label class="export-toggle"><input type="checkbox" id="connect-toggle"> Connect matching genes</label>
+        </div>
       </div>
     </div>
 
@@ -418,7 +425,9 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <option value="a4-portrait">A4 portrait</option>
         </select>
         <label class="export-toggle"><input type="checkbox" id="export-gutter" checked> Quick comparison</label>
+        <button type="button" class="export-btn preview-btn" id="preview-selected-btn" disabled>Preview selected</button>
         <button type="button" class="export-btn" id="export-selected-btn" disabled>Export selected (0)</button>
+        <button type="button" class="export-btn preview-btn" id="preview-all-btn">Preview all shown</button>
         <button type="button" class="export-btn" id="export-all-btn">Export all shown</button>
         <button type="button" class="export-btn" id="export-contigs-btn" disabled>Export contigs (0)</button>
         <span class="export-clear disabled" id="export-clear">clear</span>
@@ -472,6 +481,7 @@ const strainOrderSelect = document.getElementById("strain-order-select");
 const nGapToggle = document.getElementById("ngap-toggle");
 const nonCdsToggle = document.getElementById("noncds-toggle");
 const reverseToggle = document.getElementById("reverse-toggle");
+const connectToggle = document.getElementById("connect-toggle");
 
 // ---- theme toggle (light/dark) ----------------------------------------
 // data-theme unset = follow the OS/browser prefers-color-scheme (default).
@@ -517,6 +527,8 @@ nGapToggle.onchange = () => {
 };
 const exportSelectedBtn = document.getElementById("export-selected-btn");
 const exportAllBtn = document.getElementById("export-all-btn");
+const previewSelectedBtn = document.getElementById("preview-selected-btn");
+const previewAllBtn = document.getElementById("preview-all-btn");
 const exportContigsBtn = document.getElementById("export-contigs-btn");
 const exportClearEl = document.getElementById("export-clear");
 const exportFormat = document.getElementById("export-format");
@@ -924,6 +936,9 @@ function renderChart(data) {
   nonCdsToggle.onchange = () => draw(Number(windowSelect.value));
   // Reverse direction is likewise a pure mirror over already-fetched data.
   reverseToggle.onchange = () => draw(Number(windowSelect.value));
+  // Gene-link ribbons are also a pure client-side redraw (row spacing +
+  // ribbon geometry are both derived at draw time from the toggle state).
+  connectToggle.onchange = () => draw(Number(windowSelect.value));
 
   // ---- genome-count dropdown: changing this re-fetches from the server ----
   countSelect.innerHTML = "";
@@ -1083,6 +1098,7 @@ function renderChart(data) {
     const n = selectedGenomes.size;
     exportSelectedBtn.textContent = `Export selected (${n})`;
     exportSelectedBtn.disabled = n === 0;
+    previewSelectedBtn.disabled = n === 0;
     exportContigsBtn.textContent = `Export contigs (${n})`;
     exportContigsBtn.disabled = n === 0;
     exportClearEl.classList.toggle("disabled", n === 0);
@@ -1319,17 +1335,29 @@ function renderChart(data) {
     data.sero_buckets.forEach(b => byBucket[b] = []);
     rowsToDraw.forEach(r => { if (!byBucket[r.sero_bucket]) byBucket[r.sero_bucket] = []; byBucket[r.sero_bucket].push(r); });
 
+    // Gene-link ribbons (read live off the toggle, same pattern as `reversed`
+    // above, so it applies to on-screen and export alike). Rows need extra
+    // vertical room between them for the ribbon to be legible, so the row
+    // pitch effectively doubles whenever this is on.
+    const connectOn = connectToggle.checked;
+    const connectGap = connectOn ? rowH : 0;
+
     const yOf = new Map();
     let y = 10 + offsetY + colLabelH + rulerH;
     const sections = [];
+    const drawnOrder = [];   // every row, in the exact order it's stacked top-to-bottom, across all sections
     data.sero_buckets.forEach(b => {
       const bucketRows = byBucket[b] || [];
       if (!bucketRows.length) return;
       if (sections.length) y += sectionGap;   // blank line between blocks
       const sectionTop = y;
       y += sectionHeaderH;
-      bucketRows.forEach(r => { yOf.set(r, y); y += rowH + rowGap; });
-      sections.push({ label: b, count: bucketRows.length, top: sectionTop, rowsEnd: y - rowGap });
+      bucketRows.forEach(r => {
+        yOf.set(r, y);
+        drawnOrder.push(r);
+        y += rowH + rowGap + connectGap;
+      });
+      sections.push({ label: b, count: bucketRows.length, top: sectionTop, rowsEnd: y - rowGap - connectGap });
     });
     const totalH = y + 20;
     const totalW = labelW + plotW + gutterW + 20;
@@ -1391,6 +1419,89 @@ function renderChart(data) {
     target.appendChild(el("line", live
       ? { class: "anchor-line", x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4 + offsetY + colLabelH, y2: totalH - 16 }
       : { x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4 + offsetY + colLabelH, y2: totalH - 16, stroke: resolve("var(--text-muted)"), "stroke-width": 1, "stroke-dasharray": "2 3" }));
+
+    // Gene links: a per-cluster sweep down drawnOrder (including across a
+    // serotype-section boundary), connecting each gene to the *nearest* row
+    // above it that also carries its cluster -- not necessarily the very
+    // next row. When that nearest hit is the immediately adjacent row, it
+    // draws as the wide trapezoid ribbon (as before). When it isn't -- the
+    // gene is missing from one or more rows in between and reappears
+    // further down -- it draws as a thin, faint line instead, connecting
+    // straight through the skipped rows. Skip-lines are laid down first (and
+    // fade further the more rows they skip) specifically so the solid
+    // adjacent-row ribbons paint over them wherever the two overlap, and so
+    // intervening rows' own opaque content (gene arrows, backgrounds) hides
+    // most of a skip-line's length -- it only shows through the blank gaps
+    // it passes behind, which is the point: a background hint of "this gene
+    // recurs further down", not a competing foreground element.
+    if (connectOn && drawnOrder.length > 1) {
+      // clusterColor's values are always "var(--sN)" tokens (see where it's
+      // built above) -- same as the fill/stroke locals in the gene-arrow
+      // loop below, they must go through resolve() for export (which bakes
+      // them to real hex) but are used raw for live (the browser resolves
+      // the CSS custom property itself). Skipping that for the colored
+      // branch was an earlier bug: it made every export ribbon fall back to
+      // an unresolved "var(--sN)" fill, rendered as opaque black under the
+      // 0.35 opacity -- i.e. grey, regardless of the gene's real color.
+      const fillFor = g => {
+        const raw = g.is_anchor ? "var(--anchor-fill)"
+          : (g.cluster in clusterColor ? clusterColor[g.cluster]
+          : (g.is_rfe ? "var(--rfe-other-fill)" : "var(--other-fill)"));
+        return live ? raw : resolve(raw);
+      };
+      const geneH = rowH * 0.62, geneTopOff = (rowH - geneH) / 2;
+      const bottomY = r => yOf.get(r) + geneTopOff + geneH;
+      const topY = r => yOf.get(r) + geneTopOff;
+      const midX = g => { const [a, b] = spanX(g.start, g.end); return plotX0 + (a + b) / 2; };
+
+      const lastSeen = new Map();   // cluster -> { row, gene, rowIndex } of its most recent occurrence so far
+      const skipLinks = [], adjacentLinks = [];
+      drawnOrder.forEach((r, i) => {
+        genesInWindow(r).forEach(g => {
+          if (!g.cluster || g.cluster === "NA") return;
+          const prev = lastSeen.get(g.cluster);
+          if (prev) {
+            const link = { rAbove: prev.row, gAbove: prev.gene, rBelow: r, gBelow: g, skip: i - prev.rowIndex - 1 };
+            (link.skip === 0 ? adjacentLinks : skipLinks).push(link);
+          }
+          lastSeen.set(g.cluster, { row: r, gene: g, rowIndex: i });
+        });
+      });
+
+      skipLinks.forEach(({ rAbove, gAbove, rBelow, gBelow, skip }) => {
+        const y1 = bottomY(rAbove), y2 = topY(rBelow);
+        if (y2 <= y1) return;
+        const x1 = midX(gAbove), x2 = midX(gBelow);
+        const color = fillFor(gBelow);
+        // Fades further the more rows it skips, down to a visible floor.
+        const op = Math.max(0.08, 0.22 - skip * 0.015);
+        let line;
+        if (live) {
+          line = el("line", { class: "gene-link-skip", x1, y1, x2, y2 });
+          line.setAttribute("style", `stroke:${color};opacity:${op}`);
+        } else {
+          line = el("line", { x1, y1, x2, y2, stroke: color, "stroke-width": 1.6, opacity: op });
+        }
+        target.appendChild(line);
+      });
+
+      adjacentLinks.forEach(({ rAbove, gAbove, rBelow, gBelow }) => {
+        const yTop = bottomY(rAbove), yBot = topY(rBelow);
+        if (yBot <= yTop) return;
+        const [ax1, ax2] = spanX(gAbove.start, gAbove.end);
+        const [bx1, bx2] = spanX(gBelow.start, gBelow.end);
+        const points = `${plotX0 + ax1},${yTop} ${plotX0 + ax2},${yTop} ${plotX0 + bx2},${yBot} ${plotX0 + bx1},${yBot}`;
+        const color = fillFor(gBelow);
+        let ribbon;
+        if (live) {
+          ribbon = el("polygon", { class: "gene-link", points });
+          ribbon.setAttribute("style", `fill:${color}`);
+        } else {
+          ribbon = el("polygon", { points, fill: color, opacity: 0.35 });
+        }
+        target.appendChild(ribbon);
+      });
+    }
 
     rowsToDraw.forEach(r => {
       const rowY = yOf.get(r);
@@ -1856,6 +1967,25 @@ function renderChart(data) {
     if (node) downloadSvg(node, scope, format);
   }
 
+  // Static preview: opens the exact SVG a real export would produce (same
+  // exportSvg() call, so print-profile layout, row selection, and gene-link
+  // ribbons are all already correct for the chosen scope -- see exportSvg)
+  // in a new tab, without saving a file. Not interactive -- close the tab
+  // and adjust selections/toggles back in the main view to change anything.
+  function runPreview(scope) {
+    const format = exportFormat.value;
+    const node = exportSvg(scope, format);
+    if (!node) return;
+    const xml = new XMLSerializer().serializeToString(node);
+    const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', xml], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (!win) {
+      alert("Preview was blocked by the browser's popup blocker -- allow popups for this page and try again.");
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
   // Whole-contig FASTA for the ticked genomes -- a server round-trip (unlike
   // the SVG exports above, which are pure client-side redraws of data
   // already fetched), since only the server has the assembly sequence
@@ -1898,6 +2028,8 @@ function renderChart(data) {
 
   exportSelectedBtn.onclick = () => runExport("selected");
   exportAllBtn.onclick = () => runExport("all");
+  previewSelectedBtn.onclick = () => runPreview("selected");
+  previewAllBtn.onclick = () => runPreview("all");
   exportContigsBtn.onclick = runContigExport;
   exportClearEl.onclick = () => {
     if (!selectedGenomes.size) return;
