@@ -15,11 +15,23 @@
 # them with whatever your own metadata table actually uses.
 
 # --- required ---
+# panaroo gene_presence_absence.csv full path
 panaroo_csv =
+#  full path to prokka directory
 prokka_dir =
 
 # --- optional: genome metadata (serotype/host grouping, row labels, and
-# the generic column/value filter boxes) ---
+# the generic column/value filter boxes). metadata_join_col is the only
+# required column here (the join key against each genome's genome_id);
+# metadata_o_antigen_col + metadata_h_antigen_col (needed together, for a
+# computed "O:H" serotype label) and metadata_source_col are each
+# independently optional. The file can carry any number of other columns
+# too -- every one of them shows up as its own generic column/value
+# filter box, unused ones included. E.g.:
+#
+#   Assembly barcode(Assembly stats)  O Antigen(Serotype Prediction)  H Antigen(Serotype Prediction)  Source Type
+#   ESC_WC2492AA_AS                   O157                            H7                               Ovine/Goat (Caprinae)
+#
 metadata_tsv =
 metadata_join_col = Assembly barcode(Assembly stats)
 metadata_o_antigen_col = O Antigen(Serotype Prediction)
@@ -41,7 +53,7 @@ metadata_source_col = Source Type
 # ) ---
 rfe_features_txt =
 
-# --- optional: MGE-type labels/copy-selection preference (expects a
+# --- optional: MGE-type labels (genomad combined output) -expects a
 # tab-delimited file with pangenome_gene_cluster/genome_id/locus_tag/
 # mge_type columns -- any other columns present are just ignored, e.g.:
 #
