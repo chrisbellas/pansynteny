@@ -1,16 +1,15 @@
 # Pansynteny
 
 A local, interactive gene-order viewer for a Panaroo pangenome. Search any
-gene cluster by name or annotation, then build an anchor-gene gene-order
-chart on demand: the anchor +/- a flanking window, sampled across carrier
-genomes, RFE-important flanking genes colored, per-row gutter markers
-showing whether each colored gene is visible in the window / present
-elsewhere / absent, a genome-count toggle, and client-side metadata filter
-boxes with a cohort-wide "% of \<value\> genomes carry this gene" stat.
+gene cluster by name or annotation, then build a gene synteny
+chart on demand around this anchor gene, +/- a flanking window, sampled across carrier
+genomes. For annotation, the script accepts a list of genes to highlight, plus a metadata file. 
+A quick comparison bar shows whether each highlighted gene is visible in the window / present
+on another contig or is truly absent in the strain.
 
 Dataset-agnostic: a genome is viewable if it has a column in Panaroo's
 `gene_presence_absence.csv` and a matching Prokka GFF -- nothing else is
-required. No geNomad dependency.
+required. Metadata is optional. 
 
 ## Requirements
 
