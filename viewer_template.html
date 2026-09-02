@@ -222,6 +222,19 @@ h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
   transform: translateY(0.5px);
 }
 .export-toggle input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+/* Nudge toward "Selected genomes only": while >=1 row is ticked and this
+   toggle is still off, a gentle ring pulses around it so picking rows
+   doesn't quietly do nothing until you separately notice the toggle.
+   Stops the moment it's switched on (JS drops the class) or the last row
+   is unticked. */
+@keyframes suggest-pulse {
+  0%, 100% { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 0 var(--accent); }
+  50%      { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 3px var(--accent); }
+}
+.export-toggle.suggest-pulse { animation: suggest-pulse 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .export-toggle.suggest-pulse { animation: none; border-color: var(--accent); }
+}
 .export-btn {
   font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 6px;
   border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); cursor: pointer;
@@ -253,6 +266,11 @@ svg { display: block; }
 .section-bg { fill: var(--section-bg); }
 
 .row-label { fill: var(--text-secondary); font-size: 10px; font-family: ui-monospace, monospace; }
+/* Click-to-pick-up handle for keyboard reordering (flatOrder only) --
+   see setActiveMove/document.onkeydown in renderChart. */
+.row-label-pickable { cursor: pointer; }
+.row-label-pickable:hover { fill: var(--text-primary); }
+.row-label-pickable.active-move { fill: var(--text-primary); font-weight: 700; text-decoration: underline; }
 .col-label { fill: var(--text-secondary); font-size: 8px; font-family: ui-monospace, monospace; text-anchor: start; }
 .axis-line { stroke: var(--baseline); stroke-width: 1; }
 .ruler-axis { stroke: var(--baseline); stroke-width: 1.6; }
@@ -431,7 +449,7 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
         </div>
         <div class="window-control">
           <label>Assembly gaps</label>
-          <label class="export-toggle"><input type="checkbox" id="ngap-toggle"> Show N-runs (slower)</label>
+          <label class="export-toggle" title="Replots the data including scaffold regions (runs of NNNs) -- 30s plus"><input type="checkbox" id="ngap-toggle"> Show N-runs (slower)</label>
         </div>
         <div class="window-control">
           <label>Non-CDS features</label>
@@ -456,7 +474,7 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
         </div>
         <div class="window-control">
           <label>Gene links</label>
-          <label class="export-toggle"><input type="checkbox" id="connect-toggle"> Connect matching genes</label>
+          <label class="export-toggle"><input type="checkbox" id="connect-toggle" checked> Connect matching genes</label>
         </div>
       </div>
     </div>
@@ -474,7 +492,8 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <select class="filter-val-select" disabled><option value="">(any)</option></select>
           <span class="filter-box-stat"></span>
         </div>
-        <label class="export-toggle"><input type="checkbox" id="selected-filter-toggle"> Selected genomes only</label>
+        <label class="export-toggle" id="selected-filter-label"><input type="checkbox" id="selected-filter-toggle"> Selected genomes only</label>
+        <span class="export-clear disabled" id="undo-remove-link"></span>
         <span class="filter-status" id="filter-status"></span>
       </div>
     </div>
@@ -488,8 +507,8 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
           <option value="a4-landscape">A4 landscape</option>
           <option value="a4-portrait">A4 portrait</option>
         </select>
-        <label class="export-toggle"><input type="checkbox" id="export-gutter" checked> Quick comparison</label>
-        <button type="button" class="export-btn preview-btn" id="preview-selected-btn" disabled>Preview selected</button>
+        <label class="export-toggle"><input type="checkbox" id="export-gutter"> Quick comparison sidebar</label>
+        <button type="button" class="export-btn preview-btn" id="preview-selected-btn" disabled>Preview export</button>
         <button type="button" class="export-btn" id="export-selected-btn" disabled>Export selected (0)</button>
         <button type="button" class="export-btn preview-btn" id="preview-all-btn">Preview all shown</button>
         <button type="button" class="export-btn" id="export-all-btn">Export all shown</button>
@@ -596,6 +615,7 @@ const previewSelectedBtn = document.getElementById("preview-selected-btn");
 const previewAllBtn = document.getElementById("preview-all-btn");
 const exportContigsBtn = document.getElementById("export-contigs-btn");
 const exportClearEl = document.getElementById("export-clear");
+const undoRemoveLink = document.getElementById("undo-remove-link");
 const exportFormat = document.getElementById("export-format");
 const exportGutter = document.getElementById("export-gutter");
 const paletteSelect = document.getElementById("palette-select");
@@ -609,6 +629,7 @@ const filterValSelects = document.querySelectorAll(".filter-val-select");
 const filterBoxStats = document.querySelectorAll(".filter-box-stat");
 const filterStatusEl = document.getElementById("filter-status");
 const selectedFilterToggle = document.getElementById("selected-filter-toggle");
+const selectedFilterLabel = document.getElementById("selected-filter-label");
 const FILTER_BLANK = "__pgv_blank__"; // sentinel for "column is empty", distinct from "" (= no filter set)
 
 // Cohort-wide (anchor-independent) metadata value totals -- fetched once,
@@ -1130,7 +1151,7 @@ function renderChart(data) {
   filterValSelects.forEach((sel, i) => {
     sel.onchange = () => { updateFilterStat(i); draw(Number(windowSelect.value)); };
   });
-  selectedFilterToggle.onchange = () => draw(Number(windowSelect.value));
+  selectedFilterToggle.onchange = () => { updateExportControls(); draw(Number(windowSelect.value)); };
 
   // ---- row-label extra columns (up to two metadata columns after the name) ----
   function populateLabelColumnOptions() {
@@ -1183,6 +1204,37 @@ function renderChart(data) {
     selectedOrder = selectedOrder.filter(id => selectedGenomes.has(id));
     selectedGenomes.forEach(id => { if (!selectedOrder.includes(id)) selectedOrder.push(id); });
   }
+
+  // Undo for the one destructive click in this view: unticking a row while
+  // "Selected genomes only" is on makes it vanish from the visible list
+  // immediately (see toggle() below), and once it's gone there's no way
+  // back into it short of switching the filter off and hunting it down
+  // again in the full list. Single-slot, like most "Undo" snackbars --
+  // overwritten by the next removal, not a full history.
+  let lastRemoved = null;   // { genome_id, index } in selectedOrder just before removal
+  function updateUndoLink() {
+    if (lastRemoved) {
+      undoRemoveLink.textContent = `undo remove ${lastRemoved.genome_id}`;
+      undoRemoveLink.classList.remove("disabled");
+    } else {
+      undoRemoveLink.textContent = "";
+      undoRemoveLink.classList.add("disabled");
+    }
+  }
+  undoRemoveLink.onclick = () => {
+    if (!lastRemoved) return;
+    const { genome_id, index } = lastRemoved;
+    selectedGenomes.add(genome_id);
+    syncSelectedOrder();
+    // Put it back where it was rather than leaving it appended at the end
+    // (syncSelectedOrder's default for anything not already in the array).
+    selectedOrder = selectedOrder.filter(id => id !== genome_id);
+    selectedOrder.splice(Math.min(Math.max(index, 0), selectedOrder.length), 0, genome_id);
+    lastRemoved = null;
+    updateUndoLink();
+    updateExportControls();
+    draw(Number(windowSelect.value));
+  };
   // Swaps two genome_ids' positions in selectedOrder, given as the two ids
   // that are actually adjacent on screen right now -- not a raw +-1 index
   // step in selectedOrder, since another active column/value filter can
@@ -1204,8 +1256,13 @@ function renderChart(data) {
     exportContigsBtn.textContent = `Export contigs (${n})`;
     exportContigsBtn.disabled = n === 0;
     exportClearEl.classList.toggle("disabled", n === 0);
+    // Nudge toward "Selected genomes only": pulse it once rows are picked,
+    // for as long as it's still off (once it's on, the selection is
+    // already driving the view -- nothing left to nudge).
+    selectedFilterLabel.classList.toggle("suggest-pulse", n > 0 && !selectedFilterToggle.checked);
   }
   updateExportControls();
+  updateUndoLink();
 
   const legend = document.getElementById("legend");
   const LEGEND_COLS = 4; // matches .legend's grid-template-columns: repeat(4, ...)
@@ -1356,7 +1413,47 @@ function renderChart(data) {
       e.classList.toggle("pinned-legend", !!cluster && e.dataset.cluster === cluster);
     });
   }
-  svg.onclick = () => applyPin(null);
+  svg.onclick = () => { applyPin(null); setActiveMove(null); };
+
+  // "Pick up" a row (click its name, flatOrder only) and nudge it with the
+  // Up/Down arrow keys instead of hunting for the tiny on-screen arrows.
+  // activeMoveId survives draw() (unlike pinnedCluster, which draw() resets
+  // every time) so repeated key presses keep moving the same row -- draw()
+  // re-applies the highlight class to the freshly rebuilt row-label after
+  // each redraw instead. Cleared whenever the picked row stops being
+  // visible (filter/selection changed under it) -- see draw() below.
+  let activeMoveId = null;
+  function setActiveMove(id) {
+    activeMoveId = id;
+    svg.querySelectorAll(".row-label-pickable").forEach(e => {
+      e.classList.toggle("active-move", !!id && e.dataset.genome === id);
+    });
+  }
+  // Arrow keys only ever do anything here while a row is picked up -- with
+  // no picked row this handler returns immediately and never calls
+  // preventDefault(), so normal ArrowUp/ArrowDown page scrolling is
+  // completely untouched in every other state. Reuses the row's own
+  // on-screen reorder arrow (a synthetic click) rather than re-deriving the
+  // neighbor-lookup + boundary-check logic a second time, so keyboard and
+  // mouse moves can never disagree.
+  // document.onkeydown, not addEventListener: renderChart(data) re-runs on
+  // every anchor search, and addEventListener here would stack a fresh
+  // listener (closed over that render's now-stale activeMoveId/svg) on top
+  // of every previous one instead of replacing it -- same reason svg.onclick
+  // above is a plain assignment, not addEventListener. The Escape-closes-
+  // seq-panel listener near the top of the file is the one exception: it's
+  // added once at module load, outside renderChart, so it never re-fires.
+  document.onkeydown = (ev) => {
+    if (!activeMoveId) return;
+    if (ev.key === "Escape") { setActiveMove(null); return; }
+    if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
+    const dir = ev.key === "ArrowUp" ? "up" : "down";
+    const arrow = Array.from(svg.querySelectorAll(".reorder-arrow"))
+      .find(e => e.dataset.genome === activeMoveId && e.dataset.dir === dir);
+    if (!arrow || arrow.classList.contains("disabled")) return;
+    ev.preventDefault();
+    arrow.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  };
 
   // Shared static+interactive renderer. Lays out the section/row/gene/gutter
   // chart into `target`. One layout path drives both the live interactive
@@ -1446,14 +1543,26 @@ function renderChart(data) {
     // always get back [left,right] regardless of mirroring.
     const spanX = (lo, hi) => { const a = scaleX(lo), b = scaleX(hi); return a <= b ? [a, b] : [b, a]; };
 
-    const FLAT_BUCKET = "__flat__";
-    const bucketNames = flatOrder ? [FLAT_BUCKET] : data.sero_buckets;
-    const byBucket = {};
+    // Section grouping: normal view groups by data.sero_buckets in a fixed
+    // order (one contiguous block per serotype, in top-N-count order).
+    // flatOrder groups by contiguous runs of sero_bucket over the caller's
+    // *row order* instead -- so it still shows serotype as a dividing
+    // category, but a manual reorder that drops a row into a different
+    // serotype's run splits that run into two sections (same label, two
+    // separate blocks) rather than requiring the grouping to "win" over the
+    // reorder, or the view to collapse into one flat unlabeled block.
+    const groups = [];
     if (flatOrder) {
-      byBucket[FLAT_BUCKET] = rowsToDraw.slice();   // already in the caller's chosen order
+      rowsToDraw.forEach(r => {
+        const last = groups[groups.length - 1];
+        if (last && last.label === r.sero_bucket) last.rows.push(r);
+        else groups.push({ label: r.sero_bucket, rows: [r] });
+      });
     } else {
+      const byBucket = {};
       data.sero_buckets.forEach(b => byBucket[b] = []);
       rowsToDraw.forEach(r => { if (!byBucket[r.sero_bucket]) byBucket[r.sero_bucket] = []; byBucket[r.sero_bucket].push(r); });
+      data.sero_buckets.forEach(b => { if (byBucket[b].length) groups.push({ label: b, rows: byBucket[b] }); });
     }
 
     // Gene-link ribbons (read live off the toggle, same pattern as `reversed`
@@ -1467,20 +1576,17 @@ function renderChart(data) {
     let y = 10 + offsetY + colLabelH + rulerH;
     const sections = [];
     const drawnOrder = [];   // every row, in the exact order it's stacked top-to-bottom, across all sections
-    bucketNames.forEach(b => {
-      const bucketRows = byBucket[b] || [];
-      if (!bucketRows.length) return;
+    groups.forEach(({ label, rows: groupRows }) => {
       if (sections.length) y += sectionGap;   // blank line between blocks
       const sectionTop = y;
       y += sectionHeaderH;
-      bucketRows.forEach(r => {
+      groupRows.forEach(r => {
         yOf.set(r, y);
         drawnOrder.push(r);
         y += rowH + rowGap + connectGap;
       });
       sections.push({
-        label: flatOrder ? "Selected genomes (custom order)" : b,
-        count: bucketRows.length, top: sectionTop, rowsEnd: y - rowGap - connectGap,
+        label, count: groupRows.length, top: sectionTop, rowsEnd: y - rowGap - connectGap,
       });
     });
     const totalH = y + 20;
@@ -1598,7 +1704,7 @@ function renderChart(data) {
         const x1 = midX(gAbove), x2 = midX(gBelow);
         const color = fillFor(gBelow);
         // Fades further the more rows it skips, down to a visible floor.
-        const op = Math.max(0.08, 0.22 - skip * 0.015);
+        const op = Math.max(0.14, 0.30 - skip * 0.015);
         let line;
         if (live) {
           line = el("line", { class: "gene-link-skip", x1, y1, x2, y2 });
@@ -1645,10 +1751,23 @@ function renderChart(data) {
         const toggle = (ev) => {
           ev.stopPropagation();
           const on = !selectedGenomes.has(r.genome_id);
-          if (on) selectedGenomes.add(r.genome_id); else selectedGenomes.delete(r.genome_id);
+          if (on) {
+            selectedGenomes.add(r.genome_id);
+            // Manually re-ticked the very row Undo was offering to restore
+            // -- nothing left for Undo to do, so drop the now-stale offer
+            // rather than let it re-add an id that's already back.
+            if (lastRemoved && lastRemoved.genome_id === r.genome_id) lastRemoved = null;
+          } else {
+            // Capture its position before syncSelectedOrder() below drops it
+            // from selectedOrder, so Undo can put it back where it was
+            // instead of appending it back at the end.
+            lastRemoved = { genome_id: r.genome_id, index: selectedOrder.indexOf(r.genome_id) };
+            selectedGenomes.delete(r.genome_id);
+          }
           box.classList.toggle("checked", on);
           tick.style.display = on ? "" : "none";
           syncSelectedOrder();
+          updateUndoLink();
           updateExportControls();
           // "Selected genomes only" is a live display filter, not just an
           // export-scope marker -- so unticking a row while it's on has to
@@ -1682,6 +1801,12 @@ function renderChart(data) {
             class: "reorder-arrow" + (idx === rowsToDraw.length - 1 ? " disabled" : ""),
             points: `${downX},${midY + 9} ${downX - 5.5},${midY + 1.5} ${downX + 5.5},${midY + 1.5}`,
           });
+          // data-genome/data-dir: so the arrow-key handler (see setActiveMove
+          // in renderChart) can find and click the *current* up/down arrow
+          // for whichever row is picked up, instead of re-deriving the same
+          // neighbor-lookup + boundary-check logic a second time.
+          up.dataset.genome = r.genome_id; up.dataset.dir = "up";
+          down.dataset.genome = r.genome_id; down.dataset.dir = "down";
           if (idx > 0) up.addEventListener("click", (ev) => { ev.stopPropagation(); moveSelected(r.genome_id, rowsToDraw[idx - 1].genome_id); });
           if (idx < rowsToDraw.length - 1) down.addEventListener("click", (ev) => { ev.stopPropagation(); moveSelected(r.genome_id, rowsToDraw[idx + 1].genome_id); });
           target.appendChild(up);
@@ -1690,8 +1815,20 @@ function renderChart(data) {
       }
 
       if (live) {
-        const label = el("text", { class: "row-label", x: labelX, y: rowY + rowH / 2 + 3 });
+        // In flatOrder, the name doubles as a keyboard "pick up" handle:
+        // click it to arm Up/Down arrow-key moves (setActiveMove below),
+        // which just click the row's own on-screen reorder arrow -- so
+        // keyboard and mouse can't disagree about what a move does. Left
+        // inert everywhere else (normal grouped view has no reorder to do).
+        const label = el("text", { class: "row-label" + (flatOrder ? " row-label-pickable" : ""), x: labelX, y: rowY + rowH / 2 + 3 });
         label.textContent = rowLabelText(r);
+        if (flatOrder) {
+          label.dataset.genome = r.genome_id;
+          label.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            setActiveMove(activeMoveId === r.genome_id ? null : r.genome_id);
+          });
+        }
         target.appendChild(label);
       } else {
         // Export: source type is drawn as the symbol already used in the key
@@ -1721,7 +1858,7 @@ function renderChart(data) {
           const [sx1, sx2] = spanX(segStart, segEnd);
           target.appendChild(el("line", live
             ? { class: "seq-line", x1: plotX0 + sx1, x2: plotX0 + sx2, y1: rowY + rowH / 2, y2: rowY + rowH / 2 }
-            : { x1: plotX0 + sx1, x2: plotX0 + sx2, y1: rowY + rowH / 2, y2: rowY + rowH / 2, stroke: resolve("var(--seq-line)"), "stroke-width": 1.5 }));
+            : { x1: plotX0 + sx1, x2: plotX0 + sx2, y1: rowY + rowH / 2, y2: rowY + rowH / 2, stroke: resolve("var(--seq-line)"), "stroke-opacity": resolve.opacity("var(--seq-line)"), "stroke-width": 1.5 }));
         }
       }
 
@@ -1738,7 +1875,7 @@ function renderChart(data) {
         const bw = Math.max(4, bx2 - bx1);
         target.appendChild(el("rect", live
           ? { class: "n-gap", x: bx, y: rowY + 2, width: bw, height: rowH - 4 }
-          : { x: bx, y: rowY + 2, width: bw, height: rowH - 4, fill: resolve("var(--n-gap)") }));
+          : { x: bx, y: rowY + 2, width: bw, height: rowH - 4, fill: resolve("var(--n-gap)"), "fill-opacity": resolve.opacity("var(--n-gap)") }));
       });
 
       // Non-CDS features (rRNA/tRNA/tmRNA/repeat) -- a low-profile colored
@@ -1872,10 +2009,16 @@ function renderChart(data) {
     filterStatusEl.textContent = (shown.length === rows.length)
       ? ""
       : `${shown.length} of ${rows.length} sampled genomes match the filter${filterColSelects.length > 1 ? "s" : ""}`;
+    // The picked-up row (if any) only means something while it's both
+    // reorderable and still on screen -- e.g. unticking it, or turning
+    // "Selected genomes only" back off, drops it out from under the
+    // highlight/arrow-key handling, so drop the pick right along with it.
+    if (!reorderable || !shown.some(r => r.genome_id === activeMoveId)) activeMoveId = null;
     const dim = renderTracks(svg, { rows: shown, extentRows: shown, windowBp, live: true, flatOrder: reorderable });
     svg.setAttribute("width", dim.width);
     svg.setAttribute("height", dim.height);
     svg.setAttribute("viewBox", `0 0 ${dim.width} ${dim.height}`);
+    setActiveMove(activeMoveId);   // re-apply the highlight class to the freshly rebuilt DOM
   }
 
   // ---- SVG export ----------------------------------------------------------
@@ -1900,13 +2043,36 @@ function renderChart(data) {
     if (prev === null) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", prev);
     return map;
   }
+  // rgba(...) in a `stroke`/`fill` attribute renders fine in every browser
+  // but is silently dropped (element ends up invisible) by Inkscape's SVG
+  // importer -- it wants a plain opaque color plus a separate
+  // stroke-opacity/fill-opacity attribute. --seq-line and --n-gap are the
+  // only export vars carrying alpha, so split it out here rather than at
+  // each call site: resolve() always returns an opaque color, and the
+  // alpha (1 for anything that wasn't rgba(...) to begin with) is
+  // available via resolve.opacity() for callers that need to set it
+  // explicitly.
+  function splitAlpha(v) {
+    const m = /^rgba\(([^,]+),([^,]+),([^,]+),([^)]+)\)$/i.exec(v || "");
+    if (!m) return { color: v, opacity: 1 };
+    return { color: `rgb(${m[1].trim()},${m[2].trim()},${m[3].trim()})`, opacity: parseFloat(m[4]) };
+  }
   function makeResolver(map) {
-    return token => {
+    function lookup(token) {
       if (token == null) return null;
       const s = String(token).trim();
       const m = /^var\((--[a-z0-9-]+)\)$/i.exec(s);
       return m ? (map[m[1]] || "#000") : s;
+    }
+    const resolve = token => {
+      const v = lookup(token);
+      return v == null ? v : splitAlpha(v).color;
     };
+    resolve.opacity = token => {
+      const v = lookup(token);
+      return v == null ? 1 : splitAlpha(v).opacity;
+    };
+    return resolve;
   }
 
   function buildTitle(resolve, n, windowBp) {
@@ -1972,7 +2138,7 @@ function renderChart(data) {
       g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill: resolve("var(--anchor-fill)") }));
       g.appendChild(el("rect", { x: x - 1.5, y: y - 0.5, width: swW + 3, height: swH + 3, rx: 3, fill: "none", stroke: resolve("var(--anchor-stroke)"), "stroke-width": 1 }));
     }, `anchor gene (${anchorLabel})`, swW);
-    if (data.n_runs_included) place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill: resolve("var(--n-gap)") })), `assembly gap (run of N, ≥${data.min_n_run || 10}bp)`, swW);
+    if (data.n_runs_included) place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill: resolve("var(--n-gap)"), "fill-opacity": resolve.opacity("var(--n-gap)") })), `assembly gap (run of N, ≥${data.min_n_run || 10}bp)`, swW);
     if (nonCdsToggle.checked) {
       [["rRNA (non-CDS)", "var(--nc-rrna)"], ["tRNA / other ncRNA", "var(--nc-trna)"], ["repeat region", "var(--nc-repeat)"]].forEach(([txt, v]) => {
         const fill = resolve(v);
@@ -2217,6 +2383,8 @@ function renderChart(data) {
     if (!selectedGenomes.size) return;
     selectedGenomes.clear();
     selectedOrder = [];
+    lastRemoved = null;   // nothing meaningful left for a single-slot Undo to restore into
+    updateUndoLink();
     updateExportControls();
     draw(Number(windowSelect.value));
   };

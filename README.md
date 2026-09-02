@@ -26,13 +26,16 @@ itself. If you don't already have these for your genome set:
    ```
    for fasta in /path/to/assemblies/*.fasta; do
      stem=$(basename "$fasta" .fasta)
-     prokka --outdir prokka_out/"$stem" --prefix "$stem" "$fasta"
+     prokka --compliant --outdir prokka_out/"$stem" --prefix "$stem" "$fasta"
    done
    ```
+   `--compliant` (Genbank/ENA/DDBJ compliance mode) matters here: without it
+   Prokka annotates contigs down to 1bp, so drop it and you'll get extra
+   tiny contigs a `--compliant` run wouldn't have annotated at all.
 2. **Run Panaroo across every genome's Prokka GFF** to build the
    pangenome:
    ```
-   panaroo -i prokka_out/*/*.gff -o panaroo_out --clean-mode strict
+   panaroo --input prokka_out/*/*.gff -o panaroo_out --remove-invalid-genes --merge_paralogs --clean-mode moderate
    ```
    This produces `panaroo_out/gene_presence_absence.csv`, which is what
    `panaroo_csv` in the config points to.
@@ -76,12 +79,15 @@ both are required, neither is inferred from the other.
    ```
    (or override/skip the config file entirely with CLI flags, e.g.
    `python3 pangenome_viewer.py --panaroo-csv /abs/path.csv --prokka-dir /abs/dir`)
+   The server listens on port 8765 by default; pass `--port` to use a
+   different one, e.g. `python3 pangenome_viewer.py --port 9000`.
 3. If this machine has no GUI (e.g. a remote server), reach it from your
    laptop via an SSH tunnel:
    ```
    ssh -L 8765:localhost:8765 <this-host>
    ```
-   then open http://localhost:8765/ there.
+   then open http://localhost:8765/ there. (Adjust both `8765`s to match
+   `--port` if you changed it.)
 
 ## `pgv_lookup.py`
 
