@@ -1,0 +1,2730 @@
+<meta charset="utf-8">
+<title>Pansynteny</title>
+<style>
+:root {
+  --surface-1:      #fcfcfb;
+  --page:           #f9f9f7;
+  --text-primary:   #0b0b0b;
+  --text-secondary: #52514e;
+  --text-muted:     #898781;
+  --gridline:       #e1e0d9;
+  --baseline:       #c3c2b7;
+  --border:         rgba(0,0,0,0.10);
+  --other-fill:     #d8d6cd;
+  --other-stroke:   #b6b4aa;
+  --anchor-fill:    #0b0b0b;
+  --anchor-stroke:  #0b0b0b;
+  --s1: #2a78d6; --s2: #008300; --s3: #e87ba4; --s4: #eda100;
+  --s5: #1baf7a; --s6: #eb6834; --s7: #4a3aa7; --s8: #e34948;
+  --s9: #b8960b; --s10: #0e93a3; --s11: #a13391; --s12: #8a5a2b;
+  --s13: #7cb342; --s14: #5c6bc0; --s15: #d81b60; --s16: #607d8b;
+  --marker-same-border: #1565c0; --marker-refound-border: #c62828;
+  --rfe-other-fill: #fab219;
+  --rfe-other-stroke: #0b0b0b;
+  --section-bg: #f2f1ec;
+  --seq-line: rgba(11,11,11,0.28);
+  --n-gap: rgba(30,110,240,0.55);
+  --nc-rrna: #7c3aed; --nc-trna: #0d9488; --nc-repeat: #78716c;
+  /* stx subtype borders. Two families -- cool for stx1*, warm for stx2* -- so the
+     1-vs-2 split reads at a glance; the step within a family names the subtype.
+     Derivation and the validator numbers are in the script's stx block. Not
+     touched by the palette selector: it swaps --s1..--s16 (RFE cluster fills),
+     and stx typing is a separate encoding that must not move with it. */
+  --stx-stx1: #2d3acc; --stx-stx1a: #1679d2; --stx-stx1c: #26b4e5; --stx-stx1d: #0d598e;
+  --stx-stx2: #bd1742; --stx-stx2a: #e05b1a; --stx-stx2b: #fb8893; --stx-stx2c: #e12251;
+  --stx-stx2d: #a8190c; --stx-stx2e: #fa5670; --stx-stx2g: #fb8d69; --stx-stx2i: #b93911;
+  --stx-stx2k: #981034; --stx-stx2l: #fa7e33;
+  --accent: #2a78d6;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+    --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+    --other-fill: #3a3a37; --other-stroke: #52514e;
+    --anchor-fill: #ffffff; --anchor-stroke: #ffffff;
+    --s1: #3987e5; --s2: #008300; --s3: #d55181; --s4: #c98500;
+    --s5: #199e70; --s6: #d95926; --s7: #9085e9; --s8: #e66767;
+    --s9: #d4af1f; --s10: #22b8cc; --s11: #c752b3; --s12: #b9814f;
+    --s13: #9ccc65; --s14: #7986cb; --s15: #ec407a; --s16: #90a4ae;
+    --marker-same-border: #7cc0ff; --marker-refound-border: #ff8a80;
+    --rfe-other-fill: #d99a1e;
+    --rfe-other-stroke: #ffffff;
+    --section-bg: #202020;
+    --seq-line: rgba(255,255,255,0.55);
+    --n-gap: rgba(90,170,255,0.60);
+    --nc-rrna: #a78bfa; --nc-trna: #2dd4bf; --nc-repeat: #a8a29e;
+    /* stx subtype borders. Two families -- cool for stx1*, warm for stx2* -- so the
+       1-vs-2 split reads at a glance; the step within a family names the subtype.
+       Derivation and the validator numbers are in the script's stx block. Not
+       touched by the palette selector: it swaps --s1..--s16 (RFE cluster fills),
+       and stx typing is a separate encoding that must not move with it. */
+    --stx-stx1: #2b62ef; --stx-stx1a: #5b92f9; --stx-stx1c: #1574a1; --stx-stx1d: #4bbdfb;
+    --stx-stx2: #f03557; --stx-stx2a: #fa7256; --stx-stx2b: #dd1e4f; --stx-stx2c: #fb7987;
+    --stx-stx2d: #d73715; --stx-stx2e: #fa5670; --stx-stx2g: #fca490; --stx-stx2i: #e35319;
+    --stx-stx2k: #cb1a2f; --stx-stx2l: #f7621d;
+    --accent: #3987e5;
+  }
+}
+:root[data-theme="dark"] {
+  --surface-1: #1a1a19; --page: #0d0d0d;
+  --text-primary: #ffffff; --text-secondary: #c3c2b7; --text-muted: #898781;
+  --gridline: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+  --other-fill: #3a3a37; --other-stroke: #52514e;
+  --anchor-fill: #ffffff; --anchor-stroke: #ffffff;
+  --s1: #3987e5; --s2: #008300; --s3: #d55181; --s4: #c98500;
+  --s5: #199e70; --s6: #d95926; --s7: #9085e9; --s8: #e66767;
+  --s9: #d4af1f; --s10: #22b8cc; --s11: #c752b3; --s12: #b9814f;
+  --s13: #9ccc65; --s14: #7986cb; --s15: #ec407a; --s16: #90a4ae;
+  --marker-same-border: #7cc0ff; --marker-refound-border: #ff8a80;
+  --rfe-other-fill: #d99a1e;
+  --rfe-other-stroke: #ffffff;
+  --section-bg: #202020;
+  --seq-line: rgba(255,255,255,0.55);
+  --n-gap: rgba(90,170,255,0.60);
+  --nc-rrna: #a78bfa; --nc-trna: #2dd4bf; --nc-repeat: #a8a29e;
+  /* stx subtype borders. Two families -- cool for stx1*, warm for stx2* -- so the
+     1-vs-2 split reads at a glance; the step within a family names the subtype.
+     Derivation and the validator numbers are in the script's stx block. Not
+     touched by the palette selector: it swaps --s1..--s16 (RFE cluster fills),
+     and stx typing is a separate encoding that must not move with it. */
+  --stx-stx1: #2b62ef; --stx-stx1a: #5b92f9; --stx-stx1c: #1574a1; --stx-stx1d: #4bbdfb;
+  --stx-stx2: #f03557; --stx-stx2a: #fa7256; --stx-stx2b: #dd1e4f; --stx-stx2c: #fb7987;
+  --stx-stx2d: #d73715; --stx-stx2e: #fa5670; --stx-stx2g: #fca490; --stx-stx2i: #e35319;
+  --stx-stx2k: #cb1a2f; --stx-stx2l: #f7621d;
+  --accent: #3987e5;
+}
+:root[data-theme="light"] {
+  --surface-1: #fcfcfb; --page: #f9f9f7;
+  --text-primary: #0b0b0b; --text-secondary: #52514e; --text-muted: #898781;
+  --gridline: #e1e0d9; --baseline: #c3c2b7; --border: rgba(0,0,0,0.10);
+  --other-fill: #d8d6cd; --other-stroke: #b6b4aa;
+  --anchor-fill: #0b0b0b; --anchor-stroke: #0b0b0b;
+  --s1: #2a78d6; --s2: #008300; --s3: #e87ba4; --s4: #eda100;
+  --s5: #1baf7a; --s6: #eb6834; --s7: #4a3aa7; --s8: #e34948;
+  --s9: #b8960b; --s10: #0e93a3; --s11: #a13391; --s12: #8a5a2b;
+  --s13: #7cb342; --s14: #5c6bc0; --s15: #d81b60; --s16: #607d8b;
+  --marker-same-border: #1565c0; --marker-refound-border: #c62828;
+  --rfe-other-fill: #fab219; --rfe-other-stroke: #0b0b0b;
+  --section-bg: #f2f1ec;
+  --seq-line: rgba(11,11,11,0.28);
+  --n-gap: rgba(30,110,240,0.55);
+  --nc-rrna: #7c3aed; --nc-trna: #0d9488; --nc-repeat: #78716c;
+  /* stx subtype borders. Two families -- cool for stx1*, warm for stx2* -- so the
+     1-vs-2 split reads at a glance; the step within a family names the subtype.
+     Derivation and the validator numbers are in the script's stx block. Not
+     touched by the palette selector: it swaps --s1..--s16 (RFE cluster fills),
+     and stx typing is a separate encoding that must not move with it. */
+  --stx-stx1: #2d3acc; --stx-stx1a: #1679d2; --stx-stx1c: #26b4e5; --stx-stx1d: #0d598e;
+  --stx-stx2: #bd1742; --stx-stx2a: #e05b1a; --stx-stx2b: #fb8893; --stx-stx2c: #e12251;
+  --stx-stx2d: #a8190c; --stx-stx2e: #fa5670; --stx-stx2g: #fb8d69; --stx-stx2i: #b93911;
+  --stx-stx2k: #981034; --stx-stx2l: #fa7e33;
+  --accent: #2a78d6;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; padding: 32px 24px 80px; background: var(--page); color: var(--text-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+.wrap { max-width: 1800px; margin: 0 auto; }
+h1 { font-size: 20px; font-weight: 650; margin: 0 0 4px; }
+h1 .anchor-name { font-family: ui-monospace, monospace; font-weight: 650; }
+.subtitle { color: var(--text-secondary); font-size: 13.5px; margin: 0 0 4px; line-height: 1.5; }
+.note-details { margin: 0 0 22px; }
+.note-details summary {
+  cursor: pointer; color: var(--text-muted); font-size: 12.5px;
+  list-style: none; user-select: none; display: flex; align-items: center; gap: 5px;
+}
+.note-details summary::-webkit-details-marker { display: none; }
+.note-details summary::before {
+  content: "\25b8"; display: inline-block; font-size: 10px; transition: transform 0.15s ease;
+}
+.note-details[open] summary::before { transform: rotate(90deg); }
+.note-details summary .note-hint { opacity: 0.65; }
+.note-details[open] summary .note-hint { display: none; }
+.note { color: var(--text-muted); font-size: 12.5px; margin: 6px 0 0; line-height: 1.5; max-width: 980px; }
+.note b { color: var(--text-secondary); font-weight: 600; }
+.note code { font-family: ui-monospace, monospace; }
+
+.search-bar { position: relative; max-width: 640px; margin: 0 0 28px; }
+.search-bar input {
+  width: 100%; font: inherit; font-size: 14px; padding: 10px 14px;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1);
+  color: var(--text-primary); outline: none;
+}
+.search-bar input:focus { border-color: var(--accent); }
+.search-results {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; right: 0;
+  max-height: 420px; overflow-y: auto; background: var(--surface-1);
+  border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+  z-index: 20;
+}
+.search-result { padding: 9px 14px; cursor: pointer; border-bottom: 1px solid var(--border); }
+.search-result:last-child { border-bottom: none; }
+.search-result:hover { background: var(--section-bg); }
+.sr-top { display: flex; align-items: center; gap: 8px; }
+.sr-cluster { font-family: ui-monospace, monospace; font-size: 12.5px; font-weight: 650; }
+.sr-sub { color: var(--text-muted); font-size: 11.5px; margin-top: 2px; }
+.rfe-badge {
+  font-size: 10px; font-weight: 650; color: var(--rfe-other-fill);
+  border: 1px solid var(--rfe-other-fill); border-radius: 4px; padding: 1px 5px;
+}
+.search-empty { padding: 14px; color: var(--text-muted); font-size: 12.5px; }
+
+.status { color: var(--text-secondary); font-size: 13.5px; margin: 0 0 24px; }
+/* Indeterminate progress bar while a chart is building -- there's no real
+   percentage to report (the server scan time depends on genome count and
+   is a black box from here), so a bar that visibly keeps moving back and
+   forth is the honest signal: still working, not hung. */
+.progress-bar {
+  display: none; position: relative; height: 6px; border-radius: 3px;
+  background: var(--border); overflow: hidden; margin: -16px 0 24px;
+}
+.progress-bar.active { display: block; }
+.progress-bar-fill {
+  position: absolute; top: 0; bottom: 0; width: 28%; border-radius: 3px;
+  background: var(--accent);
+  animation: progress-slide 0.9s ease-in-out infinite alternate;
+}
+@keyframes progress-slide {
+  from { left: 0%; }
+  to   { left: 72%; }
+}
+
+.legend-label { font-weight: 650; font-size: 12.5px; color: var(--text-primary); margin-bottom: 6px; }
+.legend {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px 20px;
+  align-items: start;
+  padding: 12px 16px; background: var(--surface-1); border: 1px solid var(--border);
+  border-radius: 8px; margin-bottom: 18px; font-size: 12px; line-height: 1.3; color: var(--text-secondary);
+}
+.legend-item { display: flex; align-items: flex-start; gap: 6px; }
+.legend-sep { grid-column: 1 / -1; border-top: 1px solid var(--border); height: 0; margin: 3px 0; }
+.swatch { width: 13px; height: 9px; border-radius: 2px; flex: none; margin-top: 3px; }
+.swatch.anchor-swatch { position: relative; }
+.swatch.anchor-swatch::after {
+  content: ""; position: absolute; inset: -2px; border: 1.5px solid var(--anchor-stroke); border-radius: 3px;
+}
+
+/* ---- stx subtype rendering ---------------------------------------------- */
+/* An stx-typed gene box gets a thick, subtype-coloured border. paint-order
+   paints the stroke first and the fill over it, so the band sits entirely
+   OUTSIDE the shape -- which is what keeps a gene squeezed to the 1.4px
+   minimum width at a wide window from being swallowed by its own border: it
+   keeps every pixel of its RFE fill and grows a ring outwards instead. The
+   per-gene colour, width and dash pattern vary (by subtype and by box width)
+   so they arrive as an inline style; only what every stx box shares is here. */
+.gene-arrow.stx { paint-order: stroke; }
+/* Pinning a cluster repaints the stroke as a 3px --text-primary outline. On an
+   stx box that would read as *thinner* than its own border, so put the pinned
+   width back above it -- both are !important, so the more specific rule wins. */
+.gene-arrow.stx.pinned { stroke-width: 4.5px !important; }
+
+/* Key swatch for a subtype: a ring rather than a filled block, because that's
+   what it stands for -- the fill inside a real gene box still belongs to the
+   RFE colouring. Dashed = the non-COMPLETE operon states. */
+.swatch.stx-swatch {
+  width: 15px; height: 11px; margin-top: 2px; border-radius: 3px;
+  background: var(--other-fill); border: 2.5px solid var(--other-stroke);
+}
+.swatch.stx-swatch.stx-partial { border-style: dashed; }
+
+.header-row {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.prefs-box {
+  /* Distinct from both the page behind it and the --surface-1 controls
+     inside it -- groups each settings block visually, and as a side effect
+     gives the toggle buttons something to contrast against (they sit on
+     plain --surface-1, one step lighter than this). Each box below tints
+     toward a different one of the categorical swatch colors, so the three
+     read apart at a glance rather than all sharing one wash. */
+  border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 16px 12px; margin: 0 0 14px;
+}
+.prefs-box-viewing { background: color-mix(in srgb, var(--surface-1) 82%, var(--s1) 18%); }
+.prefs-box-filter  { background: color-mix(in srgb, var(--surface-1) 82%, var(--s4) 18%); }
+.prefs-box-export  { background: color-mix(in srgb, var(--surface-1) 82%, var(--s5) 18%); }
+.prefs-box-label { font-weight: 650; font-size: 12.5px; color: var(--text-primary); margin-bottom: 8px; }
+.prefs-box-row { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.window-control {
+  display: flex; align-items: center; gap: 7px; font-size: 12.5px;
+  color: var(--text-secondary); white-space: nowrap;
+}
+.window-control select {
+  font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text-primary); cursor: pointer;
+}
+.export-control {
+  display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-secondary); white-space: nowrap;
+}
+/* A pressable button, not a checkbox-with-label: the native checkbox is kept
+   (still fully readable/settable as .checked from JS, still keyboard-
+   focusable/toggleable) but visually hidden, and the label itself takes on
+   the pressed/depressed look via :has(input:checked) when it's on. */
+.export-toggle {
+  display: inline-flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;
+  font-size: 12.5px; font-weight: 560; padding: 4px 10px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary);
+  /* Raised, so it reads as pressable before you've ever pressed it --
+     without this it was flush with its own faint gap of border, easy to
+     mistake for plain text next to a checkbox. */
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+.export-toggle:hover { border-color: var(--accent); }
+.export-toggle:has(input:checked) {
+  background: var(--accent); border-color: var(--accent); color: #fff;
+  /* Pressed-in: the raised shadow above is replaced by an inset one, and a
+     tiny downward nudge reinforces the "pushed" feel. */
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.4);
+  transform: translateY(0.5px);
+}
+.export-toggle input[type="checkbox"] { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+/* Nudge toward "Selected genomes only": while >=1 row is ticked and this
+   toggle is still off, a gentle ring pulses around it so picking rows
+   doesn't quietly do nothing until you separately notice the toggle.
+   Stops the moment it's switched on (JS drops the class) or the last row
+   is unticked. */
+@keyframes suggest-pulse {
+  0%, 100% { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 0 var(--accent); }
+  50%      { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 0 0 3px var(--accent); }
+}
+.export-toggle.suggest-pulse { animation: suggest-pulse 1.8s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .export-toggle.suggest-pulse { animation: none; border-color: var(--accent); }
+}
+.export-btn {
+  font: inherit; font-size: 12.5px; padding: 4px 10px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); cursor: pointer;
+}
+.export-btn:hover:not(:disabled) { border-color: var(--accent); }
+.export-btn:disabled { opacity: 0.45; cursor: default; }
+.export-btn.preview-btn { border-style: dashed; background: transparent; }
+.export-clear { font-size: 12px; color: var(--accent); cursor: pointer; user-select: none; }
+.export-clear.disabled { color: var(--text-muted); cursor: default; }
+
+.filter-bar {
+  display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--text-secondary);
+}
+.filter-box { display: flex; align-items: center; gap: 6px; }
+.filter-box select {
+  font: inherit; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text-primary); cursor: pointer; max-width: 260px;
+}
+.filter-box select:disabled { opacity: 0.5; cursor: default; }
+.filter-box-stat { color: var(--text-muted); font-size: 12px; white-space: nowrap; }
+.filter-status { color: var(--text-muted); }
+
+.chart-scroll { overflow-x: auto; border: 1px solid var(--border); border-radius: 8px; background: var(--surface-1); }
+svg { display: block; }
+
+.section-label { fill: var(--text-primary); font-size: 12px; font-weight: 650; }
+.section-count { fill: var(--text-muted); font-size: 11px; font-weight: 400; }
+.section-bg { fill: var(--section-bg); }
+
+.row-label { fill: var(--text-secondary); font-size: 10px; font-family: ui-monospace, monospace; }
+/* Click-to-pick-up handle for keyboard reordering (flatOrder only) --
+   see setActiveMove/document.onkeydown in renderChart. */
+.row-label-pickable { cursor: pointer; }
+.row-label-pickable:hover { fill: var(--text-primary); }
+.row-label-pickable.active-move { fill: var(--text-primary); font-weight: 700; text-decoration: underline; }
+.col-label { fill: var(--text-secondary); font-size: 8px; font-family: ui-monospace, monospace; text-anchor: start; }
+.axis-line { stroke: var(--baseline); stroke-width: 1; }
+.ruler-axis { stroke: var(--baseline); stroke-width: 1.6; }
+.ruler-label { fill: var(--text-muted); font-size: 11px; font-family: sans-serif; text-anchor: middle; }
+.seq-line { stroke: var(--seq-line); stroke-width: 1.5; }
+.n-gap { fill: var(--n-gap); stroke: none; }
+.non-cds { stroke: none; cursor: default; }
+.anchor-line { stroke: var(--text-muted); stroke-width: 1; stroke-dasharray: 2 3; }
+.gene-link { stroke: none; opacity: 0.35; pointer-events: none; }
+.gene-link-skip { fill: none; stroke-width: 3; pointer-events: none; }
+/* Clicking a gene (with "Connect matching genes" on) lights up every ribbon
+   and skip-line for that same cluster, not just the clicked gene itself --
+   full opacity, an outline on the ribbons, and a bump in width on the skip
+   lines, undoing their normal per-instance fade/thinness (!important
+   because that fade is set inline, per-instance, in JS). */
+.gene-link.pinned { opacity: 1; stroke: var(--text-primary); stroke-width: 1; }
+.gene-link-skip.pinned { opacity: 1 !important; stroke-width: 4.5 !important; }
+
+.gene-arrow { stroke-width: 0.75; cursor: pointer; }
+.gene-arrow.other { fill: var(--other-fill); stroke: var(--other-stroke); }
+.gene-arrow.rfe-other { fill: var(--rfe-other-fill); stroke: var(--rfe-other-stroke); }
+.gene-arrow.anchor { fill: var(--anchor-fill); stroke: var(--anchor-stroke); }
+/* --text-primary is near-black in light mode, white in dark -- a fixed
+   white border was invisible against the near-white light-mode background,
+   so this now tracks the theme instead of hardcoding dark mode's color. */
+.gene-arrow.pinned { stroke: var(--text-primary) !important; stroke-width: 3px !important; }
+
+.marker-sq { stroke-width: 1.3; cursor: pointer; }
+.marker-sq.marker-visible { stroke: none; }
+.marker-sq.marker-diff { stroke-dasharray: none; }
+.marker-sq.marker-same-contig { stroke-dasharray: none; stroke-width: 1.8; }
+.marker-sq.marker-refound { stroke-dasharray: none; stroke-width: 1.8; }
+.marker-sq.pinned { stroke: var(--text-primary) !important; stroke-width: 2.5px !important; }
+
+.row-check { fill: transparent; stroke: var(--other-stroke); stroke-width: 1.2; cursor: pointer; }
+.row-check:hover { stroke: var(--accent); }
+.row-check.checked { fill: var(--accent); stroke: var(--accent); }
+.row-check-tick { stroke: var(--surface-1); stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.reorder-arrow { fill: var(--text-secondary); cursor: pointer; }
+.reorder-arrow:hover { fill: var(--accent); }
+.reorder-arrow.disabled { fill: var(--text-muted); opacity: 0.35; cursor: default; pointer-events: none; }
+
+.marker-swatch { width: 10px; height: 10px; border-radius: 2px; background: var(--other-fill); flex: none; margin-top: 2px; }
+.marker-swatch.state-visible { border: none; }
+.marker-swatch.state-diff { border: 1.5px solid var(--text-secondary); }
+.marker-swatch.state-same { border: 1.8px solid var(--marker-same-border); }
+.marker-swatch.state-refound { border: 1.8px solid var(--marker-refound-border); }
+
+.legend-item[data-cluster] { cursor: pointer; padding: 2px 6px; margin: -2px -6px; border-radius: 5px; }
+.legend-item[data-cluster]:hover { background: var(--section-bg); }
+.legend-item[data-cluster].pinned-legend { background: var(--section-bg); box-shadow: 0 0 0 1.5px var(--text-primary) inset; }
+
+#tooltip {
+  position: fixed; display: none; pointer-events: none; z-index: 50;
+  background: var(--text-primary); color: var(--page);
+  padding: 8px 11px; border-radius: 6px; font-size: 12px; line-height: 1.45;
+  max-width: 320px; box-shadow: 0 4px 18px rgba(0,0,0,0.25);
+}
+#tooltip .tt-title { font-weight: 650; margin-bottom: 2px; }
+#tooltip .tt-row { color: var(--text-muted); }
+#tooltip .tt-hint { font-style: italic; margin-top: 3px; }
+/* The stx line's colour chip: a tiny copy of the border being hovered, solid
+   or dashed to match. The line's text stays in the normal tooltip ink -- the
+   chip is the only thing in the tooltip that carries a series colour. */
+#tooltip .tt-stx-chip {
+  display: inline-block; width: 11px; height: 8px; border-radius: 2px;
+  border: 2.5px solid; margin-right: 5px; vertical-align: -1px;
+}
+
+/* ---- gene sequence panel (double-click a gene) ---- */
+.seq-panel-backdrop {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 90; display: none;
+}
+.seq-panel-backdrop.open { display: block; }
+.seq-panel {
+  position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+  width: min(640px, 92vw); max-height: 82vh; overflow-y: auto;
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0,0,0,0.35); z-index: 91; display: none; padding: 18px 20px;
+}
+.seq-panel.open { display: block; }
+.seq-panel-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; }
+.seq-panel-title { font-weight: 650; font-size: 15px; }
+.seq-panel-sub { display: block; color: var(--text-muted); font-size: 12px; margin-top: 2px; }
+.seq-panel-close {
+  border: none; background: none; color: var(--text-muted); font-size: 22px; line-height: 1;
+  cursor: pointer; padding: 0 4px; flex: none;
+}
+.seq-panel-close:hover { color: var(--text-primary); }
+.seq-block { margin-bottom: 18px; }
+.seq-block:last-child { margin-bottom: 0; }
+.seq-block-label { font-weight: 600; font-size: 12.5px; margin-bottom: 8px; }
+.seq-sub { margin-bottom: 10px; }
+.seq-sub:last-child { margin-bottom: 0; }
+.seq-sub-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; gap: 10px; }
+.seq-sub-label {
+  font-size: 11px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.03em;
+}
+.seq-copy-btn {
+  font-size: 11.5px; padding: 3px 10px; border-radius: 5px; border: 1px solid var(--border);
+  background: var(--surface-1); color: var(--text-primary); cursor: pointer; flex: none;
+}
+.seq-copy-btn:hover:not(:disabled) { border-color: var(--accent); }
+.seq-copy-btn:disabled { opacity: 0.4; cursor: default; }
+.seq-copy-btn.copied { color: var(--accent); border-color: var(--accent); }
+.seq-text {
+  font-family: ui-monospace, monospace; font-size: 11.5px; line-height: 1.5;
+  white-space: pre-wrap; word-break: break-all; background: var(--page);
+  border: 1px solid var(--border); border-radius: 6px; padding: 8px 10px;
+  max-height: 220px; overflow-y: auto;
+}
+.seq-note { color: var(--text-muted); font-size: 12px; font-style: italic; }
+
+footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
+
+.top-bar { position: fixed; top: 14px; right: 18px; z-index: 20; display: flex; align-items: center; gap: 14px; }
+.logo { display: flex; align-items: center; gap: 8px; user-select: none; }
+.logo-mark { flex: none; display: block; }
+.logo-text { font-weight: 700; font-size: 13.5px; color: var(--text-primary); letter-spacing: 0.1px; white-space: nowrap; }
+.theme-toggle-btn {
+  font: inherit; font-size: 12.5px; padding: 6px 12px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); cursor: pointer;
+}
+.theme-toggle-btn:hover { border-color: var(--accent); }
+</style>
+
+<script>
+// Restore a saved manual theme choice before first paint (best-effort --
+// this is a plain fragment with no <head>, so a brief flash on first-ever
+// visit before any choice is saved is unavoidable). Absence of a stored
+// value leaves data-theme unset, so prefers-color-scheme keeps driving it.
+(function() {
+  try {
+    var saved = localStorage.getItem("pgv_theme");
+    if (saved === "light" || saved === "dark") document.documentElement.setAttribute("data-theme", saved);
+  } catch (e) {}
+})();
+</script>
+
+<div class="top-bar">
+  <div class="logo">
+    <svg class="logo-mark" viewBox="0 0 48 20" width="48" height="20" aria-hidden="true">
+      <polygon points="0,4 8,4 12,10 8,16 0,16" fill="var(--s4)"/>
+      <polygon points="17,4 25,4 29,10 25,16 17,16" fill="var(--s1)"/>
+      <polygon points="34,4 42,4 46,10 42,16 34,16" fill="var(--s10)"/>
+    </svg>
+    <span class="logo-text">Pansynteny</span>
+  </div>
+  <button type="button" class="theme-toggle-btn" id="theme-toggle"></button>
+</div>
+
+<div class="wrap">
+  <div class="search-bar">
+    <input type="text" id="search-input" autocomplete="off"
+           placeholder="Search a gene name, Panaroo cluster, or annotation (e.g. espK, efa1, ubiquitin ligase)…">
+    <div class="search-results" id="search-results"></div>
+  </div>
+
+  <p class="status" id="status">
+    Type above to search the pangenome's 24,827 gene clusters, then pick one to build its
+    gene-order chart (anchor +/- a flanking window, sampled across up to 500 carrier genomes,
+    RFE-important flanking genes colored) &mdash; same chart style as the LEE/espK/sopA/derep_00002
+    charts, built on demand for any gene instead of one script per gene.
+  </p>
+  <div class="progress-bar" id="progress-bar"><div class="progress-bar-fill"></div></div>
+
+  <div id="chart-area" style="display:none">
+    <div class="header-row">
+      <h1>anchor <span class="anchor-name" id="anchor-name"></span></h1>
+    </div>
+
+    <div class="prefs-box prefs-box-viewing">
+      <div class="prefs-box-label">Viewing preferences</div>
+      <div class="prefs-box-row">
+        <div class="window-control">
+          <label for="count-select">Genomes shown</label>
+          <select id="count-select"></select>
+        </div>
+        <div class="window-control">
+          <label for="window-select">Flanking window</label>
+          <select id="window-select"></select>
+        </div>
+        <div class="window-control">
+          <label>Assembly gaps</label>
+          <label class="export-toggle" title="Replots the data including scaffold regions (runs of NNNs) -- 30s plus"><input type="checkbox" id="ngap-toggle"> Show N-runs (slower)</label>
+        </div>
+        <div class="window-control">
+          <label>Non-CDS features</label>
+          <label class="export-toggle"><input type="checkbox" id="noncds-toggle"> Show rRNA/tRNA</label>
+        </div>
+        <div class="window-control">
+          <label for="strain-order-select">Order key by strain</label>
+          <select id="strain-order-select"><option value="">(default: by carrier count)</option></select>
+        </div>
+        <div class="window-control">
+          <label for="palette-select">Palette</label>
+          <select id="palette-select"></select>
+        </div>
+        <div class="window-control">
+          <label for="label-col-1">Row labels</label>
+          <select id="label-col-1"></select>
+          <select id="label-col-2"></select>
+        </div>
+        <div class="window-control">
+          <label>Reading direction</label>
+          <label class="export-toggle"><input type="checkbox" id="reverse-toggle"> Reverse</label>
+        </div>
+        <div class="window-control">
+          <label>Gene links</label>
+          <label class="export-toggle"><input type="checkbox" id="connect-toggle" checked> Connect matching genes</label>
+        </div>
+      </div>
+    </div>
+
+    <div class="prefs-box prefs-box-filter">
+      <div class="prefs-box-label">Filter settings</div>
+      <div class="filter-bar" id="filter-bar">
+        <div class="filter-box">
+          <select class="filter-col-select"></select>
+          <select class="filter-val-select" disabled><option value="">(any)</option></select>
+          <span class="filter-box-stat"></span>
+        </div>
+        <div class="filter-box">
+          <select class="filter-col-select"></select>
+          <select class="filter-val-select" disabled><option value="">(any)</option></select>
+          <span class="filter-box-stat"></span>
+        </div>
+        <label class="export-toggle" id="selected-filter-label"><input type="checkbox" id="selected-filter-toggle"> Selected genomes only</label>
+        <span class="export-clear disabled" id="undo-remove-link"></span>
+        <span class="filter-status" id="filter-status"></span>
+      </div>
+    </div>
+
+    <div class="prefs-box prefs-box-export">
+      <div class="prefs-box-label">Export settings</div>
+      <div class="export-control prefs-box-row">
+        <label for="export-format">Page</label>
+        <select id="export-format">
+          <option value="screen">Screen (native)</option>
+          <option value="a4-landscape">A4 landscape</option>
+          <option value="a4-portrait">A4 portrait</option>
+        </select>
+        <label class="export-toggle"><input type="checkbox" id="export-gutter"> Quick comparison sidebar</label>
+        <button type="button" class="export-btn preview-btn" id="preview-selected-btn" disabled>Preview export</button>
+        <button type="button" class="export-btn" id="export-selected-btn" disabled>Export selected (0)</button>
+        <button type="button" class="export-btn preview-btn" id="preview-all-btn">Preview all shown</button>
+        <button type="button" class="export-btn" id="export-all-btn">Export all shown</button>
+        <button type="button" class="export-btn" id="export-contigs-btn" disabled>Export contigs (0)</button>
+        <span class="export-clear disabled" id="export-clear">clear</span>
+      </div>
+    </div>
+
+    <p class="subtitle" id="subtitle"></p>
+    <details class="note-details" id="note-details">
+      <summary>Chart notes &amp; legend key <span class="note-hint">(click to expand)</span></summary>
+      <p class="note" id="note"></p>
+    </details>
+
+    <div class="legend-label">Key &mdash; RFE selected features</div>
+    <div class="legend" id="legend"></div>
+
+    <div class="chart-scroll">
+      <svg id="chart"></svg>
+    </div>
+
+    <footer id="footer"></footer>
+  </div>
+</div>
+
+<div id="tooltip"></div>
+
+<div id="seq-panel-backdrop" class="seq-panel-backdrop"></div>
+<div id="seq-panel" class="seq-panel" role="dialog" aria-modal="true">
+  <div class="seq-panel-header">
+    <div>
+      <span id="seq-panel-title" class="seq-panel-title"></span>
+      <span id="seq-panel-sub" class="seq-panel-sub"></span>
+    </div>
+    <button type="button" class="seq-panel-close" id="seq-panel-close" aria-label="Close">&times;</button>
+  </div>
+  <div id="seq-panel-body" class="seq-panel-body"></div>
+</div>
+
+<script>
+const S_COLORS = ["s1","s2","s3","s4","s5","s6","s7","s8","s9","s10","s11","s12","s13","s14","s15","s16"];
+const NS = "http://www.w3.org/2000/svg";
+
+const searchInput = document.getElementById("search-input");
+const searchResults = document.getElementById("search-results");
+const statusEl = document.getElementById("status");
+const progressBar = document.getElementById("progress-bar");
+const chartArea = document.getElementById("chart-area");
+const svg = document.getElementById("chart");
+const tooltip = document.getElementById("tooltip");
+const windowSelect = document.getElementById("window-select");
+const countSelect = document.getElementById("count-select");
+const strainOrderSelect = document.getElementById("strain-order-select");
+const nGapToggle = document.getElementById("ngap-toggle");
+const nonCdsToggle = document.getElementById("noncds-toggle");
+const reverseToggle = document.getElementById("reverse-toggle");
+const connectToggle = document.getElementById("connect-toggle");
+
+// ---- theme toggle (light/dark) ----------------------------------------
+// data-theme unset = follow the OS/browser prefers-color-scheme (default).
+// A click pins an explicit choice and persists it; the inline restore
+// script near the top of <head> re-applies it before the chart JS runs.
+const themeToggleBtn = document.getElementById("theme-toggle");
+function effectiveTheme() {
+  const pinned = document.documentElement.getAttribute("data-theme");
+  if (pinned === "light" || pinned === "dark") return pinned;
+  return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+}
+function syncThemeButton() {
+  const t = effectiveTheme();
+  themeToggleBtn.textContent = t === "dark" ? "☀️ Light mode" : "🌙 Dark mode";
+  themeToggleBtn.title = t === "dark" ? "Switch to light mode" : "Switch to dark mode";
+}
+themeToggleBtn.onclick = () => {
+  const next = effectiveTheme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem("pgv_theme", next); } catch (e) {}
+  syncThemeButton();
+};
+syncThemeButton();
+if (window.matchMedia) {
+  // Keep the button's label honest if the OS theme changes live and the
+  // user hasn't pinned a choice of their own yet.
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => {
+    if (!document.documentElement.getAttribute("data-theme")) syncThemeButton();
+  });
+}
+// Non-CDS feature type -> fill var. RNA genes share one hue; repeats another.
+const NC_COLOR = {
+  rRNA: "var(--nc-rrna)",
+  tRNA: "var(--nc-trna)", tmRNA: "var(--nc-trna)", ncRNA: "var(--nc-trna)", misc_RNA: "var(--nc-trna)",
+  repeat_region: "var(--nc-repeat)", CRISPR: "var(--nc-repeat)",
+};
+
+// ---- stx subtype encoding ---------------------------------------------------
+// stxtyper is an optional input: when it's configured the payload carries
+// `stx_enabled`, each gene may carry stx_type / stx_operon / stx_identity, and
+// each row carries the sorted distinct `stx_types` for that genome. Everything
+// below no-ops when it isn't -- no key section, no tooltip line, no label or
+// filter option.
+//
+// Two things have to come off a gene box, and they're not equally urgent:
+// *which family* (stx1 vs stx2 -- the split you want to see without looking
+// closely) and *which subtype*. So the encoding is composite:
+//   family     -> hue          cool blues for stx1*, warm oranges/reds for stx2*
+//   subtype    -> a step within that family
+//   completeness -> solid vs dashed border
+// The box FILL is deliberately untouched: that channel already belongs to the
+// RFE cluster colouring, and this has to layer on top of it, not replace it.
+//
+// Why hue can only carry the family, not the subtype: there are 14 subtypes,
+// and 14 colours cannot be made pairwise-distinguishable -- not in this
+// method's terms, and not in practice. What *is* solid is the family split:
+// blue-vs-orange is the canonical colourblind-safe pair, and the two family
+// anchors measure OKLab dE 25.6 (light) / 23.9 (dark) under simulated
+// protanopia and deuteranopia against a >=8 target, 33.6 / 30.9 unsimulated
+// against a >=15 floor. Within a family the steps sit far closer -- 4.7 dE at
+// worst -- which is the deliberate price of family coherence. So subtype
+// identity is never left to colour alone: the key, the tooltip, and the
+// optional row-label column all spell it out in text, and the key only ever
+// lists the subtypes actually on screen.
+//
+// Keyed by subtype, never by position. clusterColor assigns --s1..--s16 by
+// rank and legitimately repaints when that order changes; an stx subtype's
+// colour is a property of the subtype itself and must not move when a
+// different subset happens to be in the sample.
+const STX_TYPES = [
+  "stx1", "stx1a", "stx1c", "stx1d",
+  "stx2", "stx2a", "stx2b", "stx2c", "stx2d", "stx2e", "stx2g", "stx2i", "stx2k", "stx2l",
+];
+const STX_META_COL = "stx type (stxtyper)";  // the metadata column the backend adds
+const stxFamily = t => /^stx1/.test(t) ? "stx1" : /^stx2/.test(t) ? "stx2" : null;
+// New subtypes get named faster than viewers get updated, so anything stxtyper
+// emits that isn't in the table above falls back to its family's own colour
+// (--stx-stx1 / --stx-stx2 are real entries: the un-suffixed types). An
+// unrecognised stx2-something still reads as "stx2", which is the part that
+// matters. It shares a swatch with the un-suffixed type in the key -- the key
+// prints both names against it, so the collision is visible, not hidden.
+function stxColorVar(t) {
+  if (!t) return null;
+  if (STX_TYPES.includes(t)) return `var(--stx-${t})`;
+  const fam = stxFamily(t);
+  return fam ? `var(--stx-${fam})` : null;
+}
+// Only COMPLETE is an intact operon; PARTIAL_CONTIG_END / PARTIAL / FRAMESHIFT
+// / INTERNAL_STOP are all fragments of one kind or another and take the dashed
+// border, so a truncated call never reads as authoritative as a complete one.
+const stxIsPartial = g => !!g.stx_operon && g.stx_operon !== "COMPLETE";
+const STX_DASH = "3.5 2.6";
+// Border weight, against the 0.75px every other gene carries -- thickness, not
+// hue, is what says "this gene is typed". Tapered on the narrowest boxes so a
+// 1.4px-wide gene grows a legible ring rather than a blob three times its own
+// width (paint-order:stroke, set in the stylesheet, keeps the band outside the
+// shape either way, so the fill survives at any width).
+function stxStrokeWidth(w) { return Math.max(2.2, Math.min(4, w * 0.9)); }
+// The inline style an stx gene box carries on top of whatever fill/stroke it
+// would have had. Empty string = not an stx gene, or a type with no family we
+// can place, in which case the box renders exactly as it always did.
+function stxBoxStyle(g, w) {
+  const c = stxColorVar(g && g.stx_type);
+  if (!c) return "";
+  return `stroke:${c};stroke-width:${stxStrokeWidth(w)}px;`
+       + (stxIsPartial(g) ? `stroke-dasharray:${STX_DASH};` : "");
+}
+// N-runs are computed server-side (opt-in, ~2s), so toggling re-fetches the
+// chart -- same pattern as the genome-count selector, not a client-side redraw.
+nGapToggle.onchange = () => {
+  if (!currentAnchor) return;
+  pendingWindowBp = Number(windowSelect.value);
+  buildChart(currentAnchor, countSelect.value);
+};
+const exportSelectedBtn = document.getElementById("export-selected-btn");
+const exportAllBtn = document.getElementById("export-all-btn");
+const previewSelectedBtn = document.getElementById("preview-selected-btn");
+const previewAllBtn = document.getElementById("preview-all-btn");
+const exportContigsBtn = document.getElementById("export-contigs-btn");
+const exportClearEl = document.getElementById("export-clear");
+const undoRemoveLink = document.getElementById("undo-remove-link");
+const exportFormat = document.getElementById("export-format");
+const exportGutter = document.getElementById("export-gutter");
+const paletteSelect = document.getElementById("palette-select");
+const labelColSelects = [document.getElementById("label-col-1"), document.getElementById("label-col-2")];
+// Row-label extras: up to two metadata columns shown after the strain name.
+// Set SHOW_TEST_SCORE=true to bring the held-out test score back into the label.
+const SHOW_TEST_SCORE = false;
+const LABEL_MGE = "__mge__";   // special option: the genomad MGE type (not a metadata column)
+const LABEL_STX = "__stx__";   // likewise: the genome's stx subtypes, from row.stx_types
+const filterColSelects = document.querySelectorAll(".filter-col-select");
+const filterValSelects = document.querySelectorAll(".filter-val-select");
+const filterBoxStats = document.querySelectorAll(".filter-box-stat");
+const filterStatusEl = document.getElementById("filter-status");
+const selectedFilterToggle = document.getElementById("selected-filter-toggle");
+const selectedFilterLabel = document.getElementById("selected-filter-label");
+const FILTER_BLANK = "__pgv_blank__"; // sentinel for "column is empty", distinct from "" (= no filter set)
+
+// Cohort-wide (anchor-independent) metadata value totals -- fetched once,
+// reused for every chart build. Populates the filter boxes' "X% of <value>
+// genomes carry this gene" stat, which needs a genome-wide denominator
+// (every genome with that value, carrier or not) that no single chart
+// response has any reason to carry.
+let metadataTotals = null;
+let refreshFilterStats = () => {};
+fetch("/api/metadata_totals").then(r => r.json()).then(d => {
+  metadataTotals = d;
+  refreshFilterStats();
+}).catch(() => {});
+
+// ---- gene sequence panel (double-click a gene arrow) ------------------------
+// One panel instance reused across every chart build/redraw -- unlike
+// showTooltip/applyPin (defined per-renderChart(data) call since they touch
+// that chart's own state), this only ever needs the cluster + genome_id
+// passed in from wherever it was triggered, plus a fresh /api/sequence
+// fetch, so there's nothing chart-instance-specific to close over.
+const seqPanelBackdrop = document.getElementById("seq-panel-backdrop");
+const seqPanel = document.getElementById("seq-panel");
+const seqPanelTitle = document.getElementById("seq-panel-title");
+const seqPanelSub = document.getElementById("seq-panel-sub");
+const seqPanelBody = document.getElementById("seq-panel-body");
+const seqPanelClose = document.getElementById("seq-panel-close");
+
+function closeSequencePanel() {
+  seqPanel.classList.remove("open");
+  seqPanelBackdrop.classList.remove("open");
+}
+seqPanelClose.onclick = closeSequencePanel;
+seqPanelBackdrop.onclick = closeSequencePanel;
+document.addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && seqPanel.classList.contains("open")) closeSequencePanel();
+});
+
+function seqSubBlockHtml(label, seq) {
+  if (!seq) return "";
+  return `<div class="seq-sub">
+    <div class="seq-sub-head">
+      <span class="seq-sub-label">${escapeHtml(label)}</span>
+      <button type="button" class="seq-copy-btn" data-seq="${escapeHtml(seq)}">Copy</button>
+    </div>
+    <div class="seq-text">${escapeHtml(seq)}</div>
+  </div>`;
+}
+
+function seqBlockHtml(label, view) {
+  if (!view) return "";
+  if (view.note) {
+    return `<div class="seq-block"><div class="seq-block-label">${escapeHtml(label)}</div>` +
+           `<div class="seq-note">${escapeHtml(view.note)}</div></div>`;
+  }
+  const meta = view.locus ? ` &middot; locus ${escapeHtml(view.locus)}` : "";
+  return `<div class="seq-block">
+    <div class="seq-block-label">${escapeHtml(label)} <span class="seq-note">(${view.length} aa${meta})</span></div>
+    ${seqSubBlockHtml("Amino acid", view.aa)}
+    ${seqSubBlockHtml("Nucleotide", view.nt)}
+  </div>`;
+}
+
+function openSequencePanel(cluster, genomeId, annotation) {
+  seqPanelTitle.textContent = cluster;
+  seqPanelSub.textContent = (annotation ? annotation + " · " : "") + "loading…";
+  seqPanelBody.innerHTML = "";
+  seqPanel.classList.add("open");
+  seqPanelBackdrop.classList.add("open");
+
+  fetch(`/api/sequence?cluster=${encodeURIComponent(cluster)}&genome=${encodeURIComponent(genomeId)}`)
+    .then(r => r.json())
+    .then(d => {
+      if (seqPanelTitle.textContent !== cluster) return; // panel moved on to a different gene meanwhile
+      if (d.error) {
+        seqPanelSub.textContent = "";
+        seqPanelBody.innerHTML = `<div class="seq-note">${escapeHtml(d.error)}</div>`;
+        return;
+      }
+      seqPanelSub.textContent = annotation || "";
+      seqPanelBody.innerHTML =
+        seqBlockHtml("Pangenome representative", d.representative) +
+        seqBlockHtml(`This genome's copy (${genomeId})`, d.strain);
+      seqPanelBody.querySelectorAll(".seq-copy-btn").forEach(btn => {
+        btn.onclick = () => {
+          navigator.clipboard.writeText(btn.dataset.seq).then(() => {
+            const prev = btn.textContent;
+            btn.textContent = "Copied";
+            btn.classList.add("copied");
+            setTimeout(() => { btn.textContent = prev; btn.classList.remove("copied"); }, 1200);
+          });
+        };
+      });
+    })
+    .catch(e => {
+      seqPanelSub.textContent = "";
+      seqPanelBody.innerHTML = `<div class="seq-note">Failed to load: ${escapeHtml(String(e))}</div>`;
+    });
+}
+
+// ---- color palette selector -------------------------------------------------
+// Swaps the 12 categorical hues (--s1..--s12) that color genes + gutter squares.
+// "Default" = the built-in theme-aware values from the stylesheet; the named
+// palettes are popular categorical sets applied as one fixed hex set across both
+// themes (non-colorblind-optimized, by request). Overriding the CSS vars recolors
+// the live chart instantly (colors are referenced as var(), no redraw needed) and
+// the SVG export picks up the choice for free (it bakes whatever the vars resolve
+// to). Persisted in localStorage so it survives reloads and new chart builds.
+const PALETTES = {
+  "Default": null,
+  "Tableau": ["#4e79a7","#f28e2b","#e15759","#76b7b2","#59a14f","#edc948","#b07aa1","#ff9da7","#9c755f","#86bcb6","#d37295","#b6992d","#499894","#d4a6c8","#a0cbe8","#8cd17d"],
+  "D3 Category": ["#1f77b4","#ff7f0e","#2ca02c","#d62728","#9467bd","#8c564b","#e377c2","#17becf","#bcbd22","#aec7e8","#98df8a","#ff9896","#ffbb78","#c5b0d5","#9edae5","#dbdb8d"],
+  "Vivid": ["#e6194b","#3cb44b","#4363d8","#f58231","#911eb4","#f032e6","#42d4f4","#469990","#9a6324","#808000","#bfef45","#fabed4","#ffe119","#800000","#000075","#aaffc3"],
+  "Set3 (soft)": ["#8dd3c7","#fdb462","#bebada","#fb8072","#80b1d3","#b3de69","#fccde5","#bc80bd","#ccebc5","#d3c14a","#e78ac3","#a6d854","#ff9e6d","#74add1","#c994c7","#78c679"],
+};
+function applyPalette(name) {
+  const cols = PALETTES[name];
+  const root = document.documentElement;
+  for (let i = 1; i <= 16; i++) {
+    if (cols) root.style.setProperty(`--s${i}`, cols[i - 1]);
+    else root.style.removeProperty(`--s${i}`);
+  }
+  try { localStorage.setItem("pgv_palette", name); } catch (e) {}
+}
+(() => {
+  Object.keys(PALETTES).forEach(name => {
+    const opt = document.createElement("option");
+    opt.value = name; opt.textContent = name;
+    paletteSelect.appendChild(opt);
+  });
+  let saved = "Default";
+  try { const s = localStorage.getItem("pgv_palette"); if (s && s in PALETTES) saved = s; } catch (e) {}
+  paletteSelect.value = saved;
+  applyPalette(saved);
+  paletteSelect.onchange = () => applyPalette(paletteSelect.value);
+})();
+
+let currentAnchor = null;
+let pendingWindowBp = null;
+
+function el(tag, attrs) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+// Reindexes `arr` so that dropping the result into a row-major grid (fill
+// left-to-right, `cols` per row -- the default for both the CSS grid legend
+// and the SVG export legend's manual row/col placement) reads top-to-bottom
+// down column 1, then column 2, etc., instead of left-to-right along each
+// row. Pads the ragged tail of the last column with `null` so callers can
+// leave that grid cell blank and keep every column the same height.
+function columnMajorOrder(arr, cols) {
+  const n = arr.length;
+  const rows = cols > 0 ? Math.ceil(n / cols) : 0;
+  const out = [];
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      const srcIdx = c * rows + r;
+      out.push(srcIdx < n ? arr[srcIdx] : null);
+    }
+  }
+  return out;
+}
+function measureApprox(s) { return s.length * 6.5; }
+// Short label for a Panaroo cluster: "group_10600" -> "10600"; an annotated
+// name takes its first "~~~" paralog segment ("sopA~~~sopA_1" -> "sopA").
+function shortClusterName(c) {
+  const first = String(c).split("~~~")[0];
+  const m = /^group_(.+)$/i.exec(first);
+  return m ? m[1] : first;
+}
+// Source Type -> symbol category (export only). Grouping chosen by the user;
+// everything not named here (Animal, Poultry, Shellfish, Water/River, Unknown)
+// folds into "other".
+const SOURCE_CATS = [
+  ["human", "Human"], ["bovine", "Bovine"], ["ovine", "Ovine/goat"],
+  ["deer", "Deer"], ["swine", "Swine"], ["food", "Food"],
+  ["environment", "Environment"], ["other", "Other"],
+];
+function sourceCat(src) {
+  switch (src) {
+    case "Human": return "human";
+    case "Bovine": return "bovine";
+    case "Ovine/Goat (Caprinae)": return "ovine";
+    case "Deer (Cervidae)": return "deer";
+    case "Swine": return "swine";
+    case "Food": return "food";
+    case "Environment": return "environment";
+    default: return "other";
+  }
+}
+// Small monochrome source-type glyph centered at (cx,cy), drawn as SVG shapes
+// (not font glyphs) so exported files are portable for publication.
+function drawSymbol(parent, cat, cx, cy, r, paint) {
+  const add = (tag, a) => parent.appendChild(el(tag, a));
+  const sw = Math.max(1, r * 0.5);
+  switch (cat) {
+    case "human":       add("circle", { cx, cy, r, fill: paint }); break;
+    case "bovine":      add("rect", { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, fill: paint }); break;
+    case "ovine":       add("polygon", { points: `${cx},${cy - r} ${cx - r},${cy + r} ${cx + r},${cy + r}`, fill: paint }); break;
+    case "swine":       add("polygon", { points: `${cx},${cy + r} ${cx - r},${cy - r} ${cx + r},${cy - r}`, fill: paint }); break;
+    case "deer":        add("polygon", { points: `${cx},${cy - r} ${cx + r},${cy} ${cx},${cy + r} ${cx - r},${cy}`, fill: paint }); break;
+    case "food":        add("path", { d: `M${cx - r},${cy} H${cx + r} M${cx},${cy - r} V${cy + r}`, stroke: paint, "stroke-width": sw, "stroke-linecap": "round", fill: "none" }); break;
+    case "environment": add("rect", { x: cx - r, y: cy - r, width: 2 * r, height: 2 * r, fill: "none", stroke: paint, "stroke-width": sw }); break;
+    default:            add("path", { d: `M${cx - r},${cy - r} L${cx + r},${cy + r} M${cx - r},${cy + r} L${cx + r},${cy - r}`, stroke: paint, "stroke-width": sw, "stroke-linecap": "round", fill: "none" }); break;
+  }
+}
+// Row label: strain name + up to two selected metadata columns (the "Row
+// labels" selectors). Test score is only appended when SHOW_TEST_SCORE is
+// true. `skipCol`, used by the SVG export, omits one selected column from
+// the text -- the export draws the source-type column as the symbol it
+// already uses in the key instead of printing it a second time as text.
+function rowLabelText(r, skipCol) {
+  let s = r.genome_id;
+  labelColSelects.forEach(sel => {
+    const col = sel.value;
+    if (!col || col === skipCol) return;
+    // stx reads from row.stx_types, never from the boxes currently drawn --
+    // the whole point of having it as a label is that it stays right when the
+    // window is narrowed past the stx operon, or the genome's stx genes sit on
+    // another contig entirely.
+    const v = col === LABEL_MGE ? r.mge_type
+            : col === LABEL_STX ? (r.stx_types || []).join(", ")
+            : (r.metadata ? r.metadata[col] : "");
+    if (v) s += "  " + v;
+  });
+  if (SHOW_TEST_SCORE && r.test_score != null) s += `  [test score ${r.test_score.toFixed(3)}]`;
+  return s;
+}
+
+// ---- search ----
+let searchDebounce = null;
+searchInput.addEventListener("input", () => {
+  clearTimeout(searchDebounce);
+  const q = searchInput.value.trim();
+  if (!q) { searchResults.style.display = "none"; searchResults.innerHTML = ""; return; }
+  searchDebounce = setTimeout(() => runSearch(q), 250);
+});
+document.addEventListener("click", (ev) => {
+  if (!searchResults.contains(ev.target) && ev.target !== searchInput) {
+    searchResults.style.display = "none";
+  }
+});
+
+function runSearch(q) {
+  fetch("/api/search?q=" + encodeURIComponent(q))
+    .then(r => r.json())
+    .then(renderSearchResults)
+    .catch(err => {
+      searchResults.innerHTML = `<div class="search-empty">search failed: ${escapeHtml(String(err))}</div>`;
+      searchResults.style.display = "block";
+    });
+}
+
+function renderSearchResults(matches) {
+  if (!matches.length) {
+    searchResults.innerHTML = `<div class="search-empty">no matches</div>`;
+    searchResults.style.display = "block";
+    return;
+  }
+  searchResults.innerHTML = matches.map(m => {
+    const names = (m.non_unique_name || "").split(";").filter(Boolean).join(", ");
+    const ann = (m.annotation || "").split(";").filter(Boolean)[0] || "";
+    const rfeBadge = m.is_rfe ? `<span class="rfe-badge">RFE</span>` : "";
+    // Top line: cluster — importance — curated Annotation, when the RFE
+    // features file supplies either for this cluster; otherwise just the
+    // cluster name (as before), and the Prokka annotation on its own line
+    // below covers it. (Importance already lives here, so it's dropped
+    // from the RFE badge to avoid showing it twice.)
+    const topBits = [escapeHtml(m.cluster)];
+    if (m.rfe_importance) topBits.push(Number(m.rfe_importance).toFixed(4));
+    if (m.rfe_annotation) topBits.push(escapeHtml(m.rfe_annotation));
+    return `<div class="search-result" data-cluster="${escapeHtml(m.cluster)}">
+      <div class="sr-top"><span class="sr-cluster">${topBits.join(" — ")}</span>${rfeBadge}</div>
+      <div class="sr-sub">${escapeHtml(names ? names + " — " : "")}${escapeHtml(ann)} · ${m.carrier_count} genomes</div>
+    </div>`;
+  }).join("");
+  searchResults.style.display = "block";
+  searchResults.querySelectorAll(".search-result").forEach(node => {
+    node.addEventListener("click", () => selectCluster(node.dataset.cluster));
+  });
+}
+
+function selectCluster(cluster) {
+  searchResults.style.display = "none";
+  searchInput.value = cluster;
+  currentAnchor = cluster;
+  pendingWindowBp = null;
+  // A brand-new gene resets to a fresh view (window + filters); a count
+  // change on the *same* gene (countSelect.onchange) intentionally leaves
+  // both alone instead of routing through here.
+  filterColSelects.forEach(sel => { sel.value = ""; });
+  filterValSelects.forEach(sel => { sel.innerHTML = '<option value="">(any)</option>'; sel.disabled = true; });
+  filterBoxStats.forEach(el => { el.textContent = ""; });
+  // selectedGenomes itself is a fresh Set every render (declared inside
+  // renderChart), but this checkbox isn't -- leaving it checked into a
+  // brand-new anchor would filter the new chart down to an empty
+  // selection and silently show nothing.
+  selectedFilterToggle.checked = false;
+  buildChart(cluster, null);
+}
+
+// Changing the genome-count toggle re-fetches from the server (unlike the
+// window toggle, which just re-filters data already in the browser) --
+// which genomes get sampled determines the whole per-row payload, there's
+// no client-side superset to filter down from. `count` is null for "use the
+// server default", a number, or the string "all".
+function buildChart(cluster, count) {
+  chartArea.style.display = "none";
+  statusEl.style.display = "block";
+  statusEl.textContent = `Building chart for ${cluster}… (scans the full pangenome table plus one genome ` +
+    `annotation file per genome shown -- larger genome counts take longer, "all" on a common gene can take ` +
+    `a few minutes)`;
+  progressBar.classList.add("active");
+  let url = "/api/chart?anchor=" + encodeURIComponent(cluster);
+  if (count) url += "&count=" + encodeURIComponent(count);
+  if (nGapToggle.checked) url += "&n_runs=1";
+  fetch(url)
+    .then(r => r.json())
+    .then(data => {
+      if (data.error) {
+        statusEl.textContent = "Error: " + data.error;
+        progressBar.classList.remove("active");
+        return;
+      }
+      statusEl.style.display = "none";
+      progressBar.classList.remove("active");
+      chartArea.style.display = "block";
+      renderChart(data);
+    })
+    .catch(err => {
+      statusEl.textContent = "Build failed: " + String(err);
+      progressBar.classList.remove("active");
+    });
+}
+
+// ---- chart rendering ----
+function renderChart(data) {
+  const rows = data.rows;
+  rows.forEach(r => { r._allGenes = r.genes; });
+
+  // stxtyper is an optional input. Without it the payload has no stx_enabled
+  // and no stx fields anywhere, and every branch below drops out: no key
+  // section, no tooltip line, no label option, no filter special case.
+  const stxEnabled = !!data.stx_enabled;
+  // stx1 family first, then stx2; known subtypes in canonical order, and
+  // anything unrecognised sorted to the end of its own family.
+  const stxRank = t => {
+    const i = STX_TYPES.indexOf(t);
+    return (stxFamily(t) === "stx1" ? 0 : 1000) + (i >= 0 ? i : 500);
+  };
+  const stxSorted = s => Array.from(s).sort((a, b) => stxRank(a) - stxRank(b) || a.localeCompare(b));
+
+  // The key lists only subtypes with a box on screen, and is recomputed from
+  // whatever is actually being displayed -- so narrowing the chart with a
+  // metadata filter or "Selected genomes only" narrows the key with it. Keying
+  // off all fetched rows instead listed everything the sampled genomes carry
+  // between them: for a STEC cohort most of the 14, several times longer than
+  // the number of colours drawn, burying the one or two that matter. Subtypes
+  // with no colour entry are kept, not dropped -- they render in their family's
+  // colour and omitting them would hide that.
+  //
+  // stxElsewhere is what those same genomes carry with no gene in the window.
+  // The row labels still name those, so the key acknowledges them on one line
+  // rather than leaving a label with nothing in the key to explain it.
+  let stxDrawn = [], stxElsewhere = [];
+  function recomputeStxKey(shownRows) {
+    if (!stxEnabled) { stxDrawn = []; stxElsewhere = []; return; }
+    const drawn = new Set();
+    shownRows.forEach(r => (r.genes || []).forEach(g => {
+      if (g.stx_type && stxFamily(g.stx_type)) drawn.add(g.stx_type);
+    }));
+    const other = new Set();
+    shownRows.forEach(r => (r.stx_types || []).forEach(t => {
+      if (t && stxFamily(t) && !drawn.has(t)) other.add(t);
+    }));
+    stxDrawn = stxSorted(drawn);
+    stxElsewhere = stxSorted(other);
+  }
+
+  const anchorLabel = (data.anchor_non_unique_name || "").split(";").filter(Boolean)[0] || data.anchor_cluster;
+  document.getElementById("anchor-name").textContent = anchorLabel;
+  const nDropped = (data.n_dropped_refound || 0) + (data.n_dropped_other || 0);
+  const hasOtherBucket = (data.sero_buckets || []).includes("Other");
+  const nTopSeros = (data.sero_buckets || []).length - (hasOtherBucket ? 1 : 0);
+  let subtitle =
+    `Showing ${data.n_shown} of ${data.total_group_members} genomes carrying ${data.anchor_cluster}` +
+    (data.anchor_annotation ? ` (${data.anchor_annotation.split(";").filter(Boolean)[0]})` : "") +
+    `, stratified by top-${nTopSeros} serotype${hasOtherBucket ? " + Other" : ""}.`;
+  if (nDropped > 0) {
+    subtitle += ` ${nDropped} sampled genome${nDropped === 1 ? "" : "s"} dropped` +
+      (data.n_dropped_refound > 0
+        ? ` (${data.n_dropped_refound} had only a Panaroo "refound" placeholder locus here, with no real Prokka gene call to draw)`
+        : "") + `.`;
+  }
+  if (data.carrier_loci_total > 0 && data.carrier_loci_refound / data.carrier_loci_total > 0.2) {
+    const pct = (100 * data.carrier_loci_refound / data.carrier_loci_total).toFixed(0);
+    subtitle += ` Note: ${pct}% of ALL genome-wide carriers of this gene (not just the ones shown) are ` +
+      `Panaroo "refound" calls rather than direct Prokka annotations — this gene may be systematically ` +
+      `hard for Prokka to call directly, so treat the low row count here as a data-quality signal, not ` +
+      `necessarily rarity.`;
+  }
+  document.getElementById("subtitle").textContent = subtitle;
+  const nGutter = data.top_rfe_clusters.length;
+  document.getElementById("note").innerHTML =
+    `Pangenome cluster <code>${escapeHtml(data.anchor_cluster)}</code>, randomly sampled (seed 42), ` +
+    `anchored and strand-corrected so it always reads on the + strand. Colored genes are RFE-important ` +
+    `features found in the full +/-${(data.max_window_bp/1000).toFixed(0)}kb superset (window toggle above ` +
+    `only filters visibility, colors never change). Row labels show <code>mge_type</code> / source / ` +
+    `<code>[test score]</code> when the genome was in the H2.2_HC20 <code>human_all_gene</code> held-out ` +
+    `test split. Click any gene to highlight every other copy of its cluster; click empty space to clear. ` +
+    `The thin baseline line marks real contig sequence even where there's no gene &mdash; reaching the window ` +
+    `edge means sequence continues beyond what's shown, stopping short means a genuine contig end. The ` +
+    `<b>Quick comparison</b> column to the right of each row has ${nGutter} fixed-position squares, one per ` +
+    `tracked RFE gene, individually colored to match the track, scannable straight down for consistency: ` +
+    `a plain filled square means that gene is drawn in the track to the left; a bordered square means it's ` +
+    `present but not shown here, for a specific ` +
+    `reason (neutral border = different contig, blue border = same contig but further away, red border = only a Panaroo ` +
+    `"refound" placeholder with no resolved position); no square at all means genuinely absent from that ` +
+    `genome. Hover a square for details. Clicking any gene &mdash; in the track, in the Quick comparison ` +
+    `column, or in the legend above &mdash; highlights every copy of its cluster everywhere on the chart.`;
+  document.getElementById("footer").textContent =
+    `${data.group_id} · coordinates relative to anchor, flipped so it always reads on the + strand · ` +
+    `only RFE-important genes are colored; everything else is neutral gray.`;
+
+  // ---- window dropdown, rebuilt per chart since options vary ----
+  windowSelect.innerHTML = "";
+  data.window_options_bp.forEach(bp => {
+    const opt = document.createElement("option");
+    opt.value = String(bp);
+    opt.textContent = `±${(bp/1000).toFixed(0)}kb`;
+    windowSelect.appendChild(opt);
+  });
+  // Carry the previously-selected window across a genome-count change
+  // (pendingWindowBp is set right before that refetch) instead of resetting
+  // to the server default every time.
+  const defaultWindow = (pendingWindowBp && data.window_options_bp.includes(pendingWindowBp))
+    ? pendingWindowBp
+    : (data.default_window_bp || data.window_options_bp[0]);
+  pendingWindowBp = null;
+  windowSelect.value = String(defaultWindow);
+  windowSelect.onchange = () => draw(Number(windowSelect.value));
+  // Non-CDS data is always in the payload (cheap to include), so its toggle is
+  // a pure client-side redraw -- no re-fetch, unlike the N-runs toggle.
+  nonCdsToggle.onchange = () => draw(Number(windowSelect.value));
+  // Reverse direction is likewise a pure mirror over already-fetched data.
+  reverseToggle.onchange = () => draw(Number(windowSelect.value));
+  // Gene-link ribbons are also a pure client-side redraw (row spacing +
+  // ribbon geometry are both derived at draw time from the toggle state).
+  connectToggle.onchange = () => draw(Number(windowSelect.value));
+
+  // ---- genome-count dropdown: changing this re-fetches from the server ----
+  countSelect.innerHTML = "";
+  (data.count_options || []).forEach(c => {
+    const opt = document.createElement("option");
+    opt.value = String(c);
+    opt.textContent = c === "all" ? `all (${data.total_group_members})` : String(c);
+    countSelect.appendChild(opt);
+  });
+  countSelect.value = String(data.requested_count != null ? data.requested_count : (data.default_count || 500));
+  countSelect.onchange = () => {
+    pendingWindowBp = Number(windowSelect.value);
+    buildChart(currentAnchor, countSelect.value);
+  };
+
+  // ---- metadata filter boxes: purely client-side, no re-fetch ----
+  // Values are drawn from the sampled genomes already in `rows` (i.e. the
+  // currently-fetched genome count), not the whole cohort -- filtering only
+  // narrows within what's already on screen, same as the count toggle
+  // fetches a wider sample rather than the filter itself pulling in new
+  // genomes. Column selection is preserved across a redraw (e.g. after a
+  // genome-count change); the value list is rebuilt each time since which
+  // values actually occur can change with a different sample.
+  function populateFilterColumnOptions() {
+    const cols = data.metadata_columns || [];
+    filterColSelects.forEach(sel => {
+      const prevVal = sel.value;
+      sel.innerHTML = '<option value="">(no filter)</option>' +
+        cols.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+      sel.value = cols.includes(prevVal) ? prevVal : "";
+    });
+  }
+
+  function populateFilterValueOptions(idx) {
+    const colSel = filterColSelects[idx], valSel = filterValSelects[idx];
+    const prevVal = valSel.value;
+    const col = colSel.value;
+    if (!col) {
+      valSel.innerHTML = '<option value="">(any)</option>';
+      valSel.disabled = true;
+      valSel.value = "";
+      return;
+    }
+    valSel.disabled = false;
+    // Counts here are against the currently-loaded sample (`rows`, e.g. 500
+    // genomes), not the full cohort -- shown so you can see before picking a
+    // value whether it's well-represented in what's already loaded. This is
+    // a different number than the cohort-wide stat that appears after
+    // selecting (see updateFilterStat) -- that one uses the gene's full
+    // genome-wide carrier count as the denominator, this one uses the
+    // sample size.
+    // The stx column is the one place where the values offered aren't the
+    // column's own values. The metadata column holds a combination string
+    // ("stx1a + stx2c"); what's useful to filter on is a single subtype, so
+    // the list is built from the rows' stx_types instead and a genome carrying
+    // two subtypes counts toward both.
+    const isStx = stxEnabled && col === STX_META_COL;
+    const counts = new Map();
+    rows.forEach(r => {
+      if (isStx) {
+        const ts = (r.stx_types || []).filter(Boolean);
+        if (!ts.length) counts.set(FILTER_BLANK, (counts.get(FILTER_BLANK) || 0) + 1);
+        else ts.forEach(t => counts.set(t, (counts.get(t) || 0) + 1));
+        return;
+      }
+      const raw = (r.metadata && r.metadata[col] !== undefined) ? r.metadata[col] : "";
+      const key = raw === "" ? FILTER_BLANK : raw;
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    const entries = Array.from(counts.keys()).sort((a, b) => {
+      if (a === FILTER_BLANK) return 1;
+      if (b === FILTER_BLANK) return -1;
+      return a.localeCompare(b);
+    });
+    const total = rows.length;
+    valSel.innerHTML = '<option value="">(any)</option>' + entries.map(k => {
+      const label = k === FILTER_BLANK ? "(blank)" : k;
+      return `<option value="${escapeHtml(k)}">${escapeHtml(label)} (${counts.get(k)}/${total})</option>`;
+    }).join("");
+    valSel.value = (entries.includes(prevVal) || prevVal === "") ? prevVal : "";
+  }
+
+  function passesFilters(r) {
+    if (selectedFilterToggle.checked && !selectedGenomes.has(r.genome_id)) return false;
+    for (let i = 0; i < filterColSelects.length; i++) {
+      const col = filterColSelects[i].value;
+      const filterVal = filterValSelects[i].value;
+      if (!col || !filterVal) continue;
+      // CONTAINS for stx, exact-match for everything else. A genome typed
+      // "stx1a + stx2c" has to match a filter on stx2c, so this compares
+      // against the row's stx_types array rather than the joined string the
+      // metadata column holds.
+      if (stxEnabled && col === STX_META_COL) {
+        const ts = (r.stx_types || []).filter(Boolean);
+        if (filterVal === FILTER_BLANK ? ts.length > 0 : !ts.includes(filterVal)) return false;
+        continue;
+      }
+      const raw = (r.metadata && r.metadata[col] !== undefined) ? r.metadata[col] : "";
+      const key = raw === "" ? FILTER_BLANK : raw;
+      if (key !== filterVal) return false;
+    }
+    return true;
+  }
+
+  // Cohort-wide "what % of <value> genomes carry this gene" stat per filter
+  // box -- independent of the genome-count toggle and of the *other*
+  // filter box (single-column stat, not the AND-combined view). Numerator
+  // (data.carrier_value_counts) is this anchor's full genome-wide carrier
+  // set; denominator (metadataTotals, fetched once) is every genome with
+  // that value regardless of carriage -- both already keyed by the same
+  // column/value strings, no re-fetch needed to update this on a filter
+  // change.
+  function updateFilterStat(idx) {
+    const statEl = filterBoxStats[idx];
+    const col = filterColSelects[idx].value;
+    const val = filterValSelects[idx].value;
+    if (!col || !val || !metadataTotals) { statEl.textContent = ""; return; }
+    const rawVal = val === FILTER_BLANK ? "" : val;
+    // Both count maps are keyed by the combination string the backend writes
+    // into the metadata column, but the stx filter offers single subtypes --
+    // so looking up "stx2a" directly would quietly return only the genomes
+    // whose whole combination happens to be exactly "stx2a" and report a
+    // confidently wrong percentage. Sum every combination containing it
+    // instead. (FILTER_BLANK is a real key in both maps; look it up directly.)
+    const sumContaining = (map, subtype) => {
+      let n = 0;
+      for (const k in (map || {})) {
+        if (k && k.split(/\s*\+\s*/).includes(subtype)) n += map[k];
+      }
+      return n;
+    };
+    const isStx = stxEnabled && col === STX_META_COL && val !== FILTER_BLANK;
+    const nCarriers = isStx
+      ? sumContaining(data.carrier_value_counts[col], val)
+      : ((data.carrier_value_counts[col] || {})[rawVal] || 0);
+    const nTotal = isStx
+      ? sumContaining(metadataTotals.totals[col], val)
+      : ((metadataTotals.totals[col] || {})[rawVal] || 0);
+    if (nTotal === 0) { statEl.textContent = ""; return; }
+    const pct = (100 * nCarriers / nTotal).toFixed(1);
+    statEl.textContent = `${nCarriers}/${nTotal} genomes with this value carry the gene (${pct}%, cohort-wide)`;
+  }
+  refreshFilterStats = () => { filterBoxStats.forEach((_, i) => updateFilterStat(i)); };
+
+  populateFilterColumnOptions();
+  filterColSelects.forEach((sel, i) => {
+    populateFilterValueOptions(i);
+    updateFilterStat(i);
+    sel.onchange = () => { populateFilterValueOptions(i); updateFilterStat(i); draw(Number(windowSelect.value)); };
+  });
+  filterValSelects.forEach((sel, i) => {
+    sel.onchange = () => { updateFilterStat(i); draw(Number(windowSelect.value)); };
+  });
+  selectedFilterToggle.onchange = () => { updateExportControls(); draw(Number(windowSelect.value)); };
+
+  // ---- row-label extra columns (up to two metadata columns after the name) ----
+  function populateLabelColumnOptions() {
+    const cols = data.metadata_columns || [];
+    // LABEL_STX sits alongside LABEL_MGE as a non-metadata option. The raw
+    // "stx type (stxtyper)" column is still in `cols` and still offered -- it
+    // prints the same information as the joined string the backend built; this
+    // one prints it from row.stx_types, which is what makes it survive a window
+    // that no longer draws the stx genes.
+    const optsHtml = '<option value="">(none)</option>'
+      + `<option value="${LABEL_MGE}">MGE type</option>`
+      + (stxEnabled ? `<option value="${LABEL_STX}">stx type</option>` : "")
+      + cols.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+    const valid = ["", LABEL_MGE, ...(stxEnabled ? [LABEL_STX] : []), ...cols];
+    const stored = [localStorage.getItem("pgv_label_1"), localStorage.getItem("pgv_label_2")];
+    const fallback = [data.metadata_source_col || "", ""];   // default: host col, then none
+    labelColSelects.forEach((sel, i) => {
+      const want = sel.value || (stored[i] != null ? stored[i] : fallback[i]);
+      sel.innerHTML = optsHtml;
+      sel.value = valid.includes(want) ? want : "";
+      sel.onchange = () => {
+        localStorage.setItem(`pgv_label_${i + 1}`, sel.value);
+        draw(Number(windowSelect.value));
+      };
+    });
+  }
+  populateLabelColumnOptions();
+
+  // ---- legend (fixed regardless of window) ----
+  // data.top_rfe_clusters starts in the server's default order (by
+  // genome-wide carrier count); "Order key by strain" below can reorder it
+  // (and, with it, the color assignment -- clusterColor is keyed by
+  // position in this array) to match one chosen genome's left-to-right gene
+  // order. originalTopRfeClusters is a frozen copy of the default order, so
+  // switching strains (or picking "default" again) is always computed from
+  // the same baseline rather than compounding onto a previous reorder.
+  const originalTopRfeClusters = data.top_rfe_clusters.slice();
+  const clusterColor = {};
+  function rebuildClusterColor() {
+    Object.keys(clusterColor).forEach(k => delete clusterColor[k]);
+    data.top_rfe_clusters.forEach((c, i) => { clusterColor[c] = `var(--${S_COLORS[i]})`; });
+  }
+  rebuildClusterColor();
+
+  // ---- per-row selection (for SVG export) ----
+  // Persists across window/filter redraws on this chart; reset per new anchor
+  // (in selectCluster). Keyed by genome_id.
+  const selectedGenomes = new Set();
+  // Custom display order for the "Selected genomes only" view -- an array
+  // (not just the Set above) specifically so the up/down reorder arrows
+  // have something to swap. Kept in sync with selectedGenomes on every
+  // tick/untick: ids no longer selected drop out, newly-ticked ones are
+  // appended at the end, everything else keeps its relative position.
+  let selectedOrder = [];
+  function syncSelectedOrder() {
+    selectedOrder = selectedOrder.filter(id => selectedGenomes.has(id));
+    selectedGenomes.forEach(id => { if (!selectedOrder.includes(id)) selectedOrder.push(id); });
+  }
+
+  // Undo for the one destructive click in this view: unticking a row while
+  // "Selected genomes only" is on makes it vanish from the visible list
+  // immediately (see toggle() below), and once it's gone there's no way
+  // back into it short of switching the filter off and hunting it down
+  // again in the full list. Single-slot, like most "Undo" snackbars --
+  // overwritten by the next removal, not a full history.
+  let lastRemoved = null;   // { genome_id, index } in selectedOrder just before removal
+  function updateUndoLink() {
+    if (lastRemoved) {
+      undoRemoveLink.textContent = `undo remove ${lastRemoved.genome_id}`;
+      undoRemoveLink.classList.remove("disabled");
+    } else {
+      undoRemoveLink.textContent = "";
+      undoRemoveLink.classList.add("disabled");
+    }
+  }
+  undoRemoveLink.onclick = () => {
+    if (!lastRemoved) return;
+    const { genome_id, index } = lastRemoved;
+    selectedGenomes.add(genome_id);
+    syncSelectedOrder();
+    // Put it back where it was rather than leaving it appended at the end
+    // (syncSelectedOrder's default for anything not already in the array).
+    selectedOrder = selectedOrder.filter(id => id !== genome_id);
+    selectedOrder.splice(Math.min(Math.max(index, 0), selectedOrder.length), 0, genome_id);
+    lastRemoved = null;
+    updateUndoLink();
+    updateExportControls();
+    draw(Number(windowSelect.value));
+  };
+  // Swaps two genome_ids' positions in selectedOrder, given as the two ids
+  // that are actually adjacent on screen right now -- not a raw +-1 index
+  // step in selectedOrder, since another active column/value filter can
+  // narrow what's *visible* to fewer than everything selected, and a plain
+  // index swap there could land on an entry that's currently hidden (the
+  // arrow click would change data but the two visible rows wouldn't
+  // visibly move at all).
+  function moveSelected(idA, idB) {
+    const i = selectedOrder.indexOf(idA), j = selectedOrder.indexOf(idB);
+    if (i < 0 || j < 0) return;
+    [selectedOrder[i], selectedOrder[j]] = [selectedOrder[j], selectedOrder[i]];
+    draw(Number(windowSelect.value));
+  }
+  function updateExportControls() {
+    const n = selectedGenomes.size;
+    exportSelectedBtn.textContent = `Export selected (${n})`;
+    exportSelectedBtn.disabled = n === 0;
+    previewSelectedBtn.disabled = n === 0;
+    exportContigsBtn.textContent = `Export contigs (${n})`;
+    exportContigsBtn.disabled = n === 0;
+    exportClearEl.classList.toggle("disabled", n === 0);
+    // Nudge toward "Selected genomes only": pulse it once rows are picked,
+    // for as long as it's still off (once it's on, the selection is
+    // already driving the view -- nothing left to nudge).
+    selectedFilterLabel.classList.toggle("suggest-pulse", n > 0 && !selectedFilterToggle.checked);
+  }
+  updateExportControls();
+  updateUndoLink();
+
+  const legend = document.getElementById("legend");
+  const LEGEND_COLS = 4; // matches .legend's grid-template-columns: repeat(4, ...)
+  function buildLegend() {
+    // Reflects the rows actually on screen, not every row fetched -- same
+    // predicate draw() and the export use, so all three agree.
+    recomputeStxKey(rows.filter(passesFilters));
+    const items = [];
+    // Column-major: reads top-to-bottom down column 1, then column 2, etc.
+    // (easier to trace a color than left-to-right), while the underlying
+    // CSS grid still just fills row-major -- columnMajorOrder does the
+    // reindexing, padding the ragged last column with blank cells so the
+    // static rows appended below always start on a fresh row.
+    columnMajorOrder(data.top_rfe_clusters, LEGEND_COLS).forEach(c => {
+      if (c == null) { items.push(`<div class="legend-item"></div>`); return; }
+      const label = (data.cluster_labels[c] || c).split(";")[0];
+      items.push(`<div class="legend-item" data-cluster="${escapeHtml(c)}"><div class="swatch" style="background:${clusterColor[c]}"></div>${escapeHtml(c)} — ${escapeHtml(label.slice(0,38))}</div>`);
+    });
+    items.push(`<div class="legend-item"><div class="swatch" style="background:var(--rfe-other-fill)"></div>other RFE feature</div>`);
+    items.push(`<div class="legend-item"><div class="swatch anchor-swatch" style="background:var(--anchor-fill)"></div>anchor gene (${escapeHtml(anchorLabel)})</div>`);
+    if (data.n_runs_included) items.push(`<div class="legend-item"><div class="swatch" style="background:var(--n-gap)"></div>assembly gap (run of N, &ge;${data.min_n_run || 10}bp)</div>`);
+    if (nonCdsToggle.checked) {
+      items.push(`<div class="legend-item"><div class="swatch" style="background:var(--nc-rrna)"></div>rRNA (non-CDS)</div>`);
+      items.push(`<div class="legend-item"><div class="swatch" style="background:var(--nc-trna)"></div>tRNA / other ncRNA</div>`);
+      items.push(`<div class="legend-item"><div class="swatch" style="background:var(--nc-repeat)"></div>repeat region</div>`);
+    }
+    // stx subtypes: only the ones drawn in this chart, grouped stx1 family
+    // then stx2 (stxDrawn is already in that order). The swatches are rings, not
+    // blocks, because that's what the encoding is -- a border over an unchanged
+    // fill -- and the last entry carries the solid-vs-dashed meaning once for
+    // the whole group rather than doubling every row.
+    if (stxDrawn.length || stxElsewhere.length) {
+      items.push(`<div class="legend-sep"></div>`);
+      let fam = null;
+      stxDrawn.forEach(t => {
+        const f = stxFamily(t);
+        if (f !== fam) {
+          fam = f;
+          items.push(`<div class="legend-item" style="font-weight:650">`
+            + `${f === "stx1" ? "Shiga toxin 1" : "Shiga toxin 2"} subtypes (stxtyper)</div>`);
+        }
+        const known = STX_TYPES.includes(t);
+        items.push(`<div class="legend-item"><div class="swatch stx-swatch" `
+          + `style="border-color:${stxColorVar(t)}"></div>${escapeHtml(t)}`
+          + (known ? "" : ` <span style="opacity:0.7">(unlisted subtype, shown as ${escapeHtml(f)})</span>`)
+          + `</div>`);
+      });
+      if (stxDrawn.length) {
+        items.push(`<div class="legend-item"><div class="swatch stx-swatch stx-partial" `
+          + `style="border-color:var(--text-secondary)"></div>dashed border = operon not COMPLETE `
+          + `(partial, contig end, frameshift or internal stop)</div>`);
+      }
+      if (stxElsewhere.length) {
+        items.push(`<div class="legend-item" style="opacity:0.72">Also carried by genomes here, `
+          + `but no gene in this window: ${escapeHtml(stxElsewhere.join(", "))}</div>`);
+      }
+    }
+    items.push(`<div class="legend-sep"></div>`);
+    items.push(`<div class="legend-item"><div class="marker-swatch state-diff"></div>Quick comparison: present, different contig</div>`);
+    items.push(`<div class="legend-item"><div class="marker-swatch state-same"></div>Quick comparison: present, same contig, outside window</div>`);
+    items.push(`<div class="legend-item"><div class="marker-swatch state-refound"></div>Quick comparison: present via Panaroo "refound" only</div>`);
+    legend.innerHTML = items.join("");
+    legend.querySelectorAll("[data-cluster]").forEach(node => {
+      node.addEventListener("click", () => {
+        const cl = node.dataset.cluster;
+        applyPin(pinnedCluster === cl ? null : cl);
+      });
+    });
+  }
+  buildLegend();
+
+  // ---- "Order key by strain" ----
+  // Picking a genome reorders (and recolors) the top-N RFE clusters to
+  // match that genome's left-to-right gene order around the anchor, using
+  // its full +/-max-window gene set (_allGenes) so the order doesn't
+  // change with the window toggle. Clusters absent from the chosen genome
+  // are appended at the end, in the original default (carrier-count)
+  // order. Picking "(default)" restores that original order.
+  strainOrderSelect.innerHTML = "";
+  const defaultOpt = document.createElement("option");
+  defaultOpt.value = "";
+  defaultOpt.textContent = "(default: by carrier count)";
+  strainOrderSelect.appendChild(defaultOpt);
+  rows.forEach(r => {
+    const opt = document.createElement("option");
+    opt.value = r.genome_id;
+    const bits = [r.genome_id, r.serotype, r.source_type].filter(Boolean);
+    opt.textContent = bits.join("  ·  ");
+    strainOrderSelect.appendChild(opt);
+  });
+  strainOrderSelect.value = "";
+  strainOrderSelect.onchange = () => {
+    const genomeId = strainOrderSelect.value;
+    let newOrder;
+    if (!genomeId) {
+      newOrder = originalTopRfeClusters.slice();
+    } else {
+      const row = rows.find(r => r.genome_id === genomeId);
+      const inTopSet = new Set(originalTopRfeClusters);
+      const seen = new Set();
+      const present = [];
+      ((row && row._allGenes) || [])
+        .filter(g => inTopSet.has(g.cluster))
+        .sort((a, b) => a.start - b.start)
+        .forEach(g => {
+          if (!seen.has(g.cluster)) { seen.add(g.cluster); present.push(g.cluster); }
+        });
+      const rest = originalTopRfeClusters.filter(c => !seen.has(c));
+      newOrder = present.concat(rest);
+    }
+    data.top_rfe_clusters = newOrder;
+    rebuildClusterColor();
+    buildLegend();
+    draw(Number(windowSelect.value));
+  };
+
+  function showTooltip(ev, g) {
+    const kind = g.is_anchor ? "anchor gene" : g.is_rfe ? "RFE feature" : "not RFE-flagged";
+    // Top line: cluster — importance — curated Annotation, when the RFE
+    // features file supplies either for this cluster; the Prokka
+    // annotation drops to the line below it. Neither present (not an RFE
+    // feature, or an RFE file without an Annotation column) -- collapses
+    // back to just the Prokka annotation on its own line, as before.
+    const hasRfeData = g.rfe_importance || g.rfe_annotation;
+    const titleBits = [escapeHtml(g.cluster)];
+    if (g.rfe_importance) titleBits.push(Number(g.rfe_importance).toFixed(4));
+    if (g.rfe_annotation) titleBits.push(escapeHtml(g.rfe_annotation));
+    tooltip.innerHTML =
+      (hasRfeData
+        ? `<div class="tt-title">${titleBits.join(" — ")}</div>` +
+          `<div class="tt-row">${escapeHtml(g.product)}</div>` +
+          `<div class="tt-row">${kind}</div>`
+        : `<div class="tt-title">${escapeHtml(g.product)}</div>` +
+          `<div class="tt-row">${escapeHtml(g.cluster)} · ${kind}</div>`) +
+      `<div class="tt-row">strand ${g.strand} · ${g.start} to ${g.end} (rel. to anchor)</div>` +
+      // Only when this gene was actually typed -- an untyped gene gets the
+      // tooltip it always had. The chip repeats the box's own border (solid or
+      // dashed) so the colour on screen and the name here are visibly the same
+      // thing; identity itself is carried by the text, not the chip.
+      (stxEnabled && g.stx_type
+        ? `<div class="tt-row"><span class="tt-stx-chip" style="border-color:${stxColorVar(g.stx_type)}`
+          + `${stxIsPartial(g) ? ";border-style:dashed" : ""}"></span>`
+          + `${escapeHtml(g.stx_type)}`
+          + (g.stx_operon ? ` · ${escapeHtml(g.stx_operon)}` : "")
+          + (g.stx_identity ? ` · ${escapeHtml(g.stx_identity)}% identity` : "")
+          + `</div>`
+        : "") +
+      // Double-click is a no-op on an unclustered ("NA") gene -- see the
+      // matching guard on the dblclick handler -- so the hint would be a
+      // false promise there and is left off.
+      (g.cluster !== "NA" ? `<div class="tt-row tt-hint">double click to view sequence</div>` : "");
+    tooltip.style.display = "block";
+    positionTooltip(ev);
+  }
+  function showNonCdsTooltip(ev, f) {
+    tooltip.innerHTML =
+      `<div class="tt-title">${escapeHtml(f.label)}</div>` +
+      `<div class="tt-row">${escapeHtml(f.ftype)} · non-coding (not a CDS)</div>` +
+      `<div class="tt-row">strand ${f.strand} · ${f.start} to ${f.end} (rel. to anchor)</div>`;
+    tooltip.style.display = "block";
+    positionTooltip(ev);
+  }
+  function positionTooltip(ev) {
+    tooltip.style.left = Math.min(ev.clientX + 14, window.innerWidth - 340) + "px";
+    tooltip.style.top = Math.min(ev.clientY + 14, window.innerHeight - 90) + "px";
+  }
+  function showMarkerTooltip(ev, cluster, state) {
+    const label = (data.cluster_labels[cluster] || cluster).split(";")[0];
+    const stateText = state === "visible"
+      ? "drawn in the main gene track to the left"
+      : state === "different_contig"
+      ? "present, but on a different contig than the anchor in this genome"
+      : state === "same_contig_outside_window"
+      ? "present, same contig as the anchor, just outside the full +/-40kb window"
+      : "present only via a Panaroo \"refound\" placeholder — no Prokka GFF entry to resolve a position from";
+    tooltip.innerHTML =
+      `<div class="tt-title">${escapeHtml(cluster)}</div>` +
+      `<div class="tt-row">${escapeHtml(label)}</div>` +
+      `<div class="tt-row">${escapeHtml(stateText)}</div>`;
+    tooltip.style.display = "block";
+    positionTooltip(ev);
+  }
+
+  let pinnedCluster = null;
+  function applyPin(cluster) {
+    pinnedCluster = cluster;
+    // .gene-link/.gene-link-skip only exist in the DOM at all when "Connect
+    // matching genes" is on, so this is a no-op (matches nothing extra)
+    // whenever that toggle is off.
+    svg.querySelectorAll(".gene-arrow, .marker-sq, .gene-link, .gene-link-skip").forEach(e => {
+      e.classList.toggle("pinned", !!cluster && e.dataset.cluster === cluster);
+    });
+    legend.querySelectorAll("[data-cluster]").forEach(e => {
+      e.classList.toggle("pinned-legend", !!cluster && e.dataset.cluster === cluster);
+    });
+  }
+  svg.onclick = () => { applyPin(null); setActiveMove(null); };
+
+  // "Pick up" a row (click its name, flatOrder only) and nudge it with the
+  // Up/Down arrow keys instead of hunting for the tiny on-screen arrows.
+  // activeMoveId survives draw() (unlike pinnedCluster, which draw() resets
+  // every time) so repeated key presses keep moving the same row -- draw()
+  // re-applies the highlight class to the freshly rebuilt row-label after
+  // each redraw instead. Cleared whenever the picked row stops being
+  // visible (filter/selection changed under it) -- see draw() below.
+  let activeMoveId = null;
+  function setActiveMove(id) {
+    activeMoveId = id;
+    svg.querySelectorAll(".row-label-pickable").forEach(e => {
+      e.classList.toggle("active-move", !!id && e.dataset.genome === id);
+    });
+  }
+  // Arrow keys only ever do anything here while a row is picked up -- with
+  // no picked row this handler returns immediately and never calls
+  // preventDefault(), so normal ArrowUp/ArrowDown page scrolling is
+  // completely untouched in every other state. Reuses the row's own
+  // on-screen reorder arrow (a synthetic click) rather than re-deriving the
+  // neighbor-lookup + boundary-check logic a second time, so keyboard and
+  // mouse moves can never disagree.
+  // document.onkeydown, not addEventListener: renderChart(data) re-runs on
+  // every anchor search, and addEventListener here would stack a fresh
+  // listener (closed over that render's now-stale activeMoveId/svg) on top
+  // of every previous one instead of replacing it -- same reason svg.onclick
+  // above is a plain assignment, not addEventListener. The Escape-closes-
+  // seq-panel listener near the top of the file is the one exception: it's
+  // added once at module load, outside renderChart, so it never re-fires.
+  document.onkeydown = (ev) => {
+    if (!activeMoveId) return;
+    if (ev.key === "Escape") { setActiveMove(null); return; }
+    if (ev.key !== "ArrowUp" && ev.key !== "ArrowDown") return;
+    const dir = ev.key === "ArrowUp" ? "up" : "down";
+    const arrow = Array.from(svg.querySelectorAll(".reorder-arrow"))
+      .find(e => e.dataset.genome === activeMoveId && e.dataset.dir === dir);
+    if (!arrow || arrow.classList.contains("disabled")) return;
+    ev.preventDefault();
+    arrow.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+  };
+
+  // Shared static+interactive renderer. Lays out the section/row/gene/gutter
+  // chart into `target`. One layout path drives both the live interactive
+  // chart (colors via CSS classes/vars, hover + click + selection wired) and
+  // the SVG export (static, colors baked to concrete hex as presentation
+  // attributes so the file is portable to Illustrator/Inkscape).
+  //   opts.rows        rows to draw (already filtered + ordered)
+  //   opts.extentRows  rows the x-scale extent is measured over (default rows);
+  //                    pass the full shown set when drawing a subset so gene
+  //                    positions match the on-screen chart
+  //   opts.windowBp    current flanking window
+  //   opts.live        true = interactive live chart; false = static export
+  //   opts.resolve     token -> paint; identity for live, hex map for export
+  //   opts.offsetY     vertical offset for all content (export: below legend)
+  // Returns { width, height } of the drawn block (height includes offsetY).
+  function renderTracks(target, opts) {
+    const windowBp = opts.windowBp;
+    const live = !!opts.live;
+    const resolve = opts.resolve || (t => t);
+    const offsetY = opts.offsetY || 0;
+    const rowsToDraw = opts.rows;
+    const extentRows = opts.extentRows || rowsToDraw;
+    // "Selected genomes only" + reorder arrows: draw as one flat block in
+    // exactly the given order, instead of grouped/re-sorted into serotype
+    // sections -- section grouping would silently undo a manual reorder
+    // (a row "moved up" could jump to a different section and not visibly
+    // move), so it's turned off for as long as this view is active.
+    const flatOrder = !!opts.flatOrder;
+
+    const rowH = 20, rowGap = 2;
+    // Header band above each serotype block, and a blank gap between blocks.
+    // Export tightens the header->strains gap and adds a line between blocks.
+    const sectionHeaderH = opts.sectionHeaderH ?? 30;
+    const sectionGap = opts.sectionGap ?? 0;
+    const headerBaseY = Math.min(14, sectionHeaderH - 4);
+    const labelW = opts.labelW ?? 320;
+    const markerSize = 9, markerGap = 3, markerLeftPad = opts.markerLeftPad ?? 14, checkSize = 11;
+    // Print can cap the gutter columns (0 = none; undefined = all, for live).
+    const gutterClusters = opts.maxGutter != null ? data.top_rfe_clusters.slice(0, opts.maxGutter) : data.top_rfe_clusters;
+    const gutterW = markerLeftPad + gutterClusters.length * (markerSize + markerGap);
+    const plotW = opts.plotW ?? 1280, pad = opts.pad ?? 800;
+    const plotX0 = labelW;
+    const labelX = live ? (flatOrder ? 37 : 19) : 10;
+    const gutterX0 = plotX0 + plotW + markerLeftPad;
+    // Header band for the vertical per-column short-name labels (the gutter
+    // columns are the same clusters in every row, so label them once at the top).
+    const colLabelH = gutterClusters.length ? 54 : 0;
+    // kb ruler above the rows: since scaleX's domain tracks the genes
+    // actually present (+pad), not a fixed window, the same window size can
+    // draw at a different px-per-kb ratio chart to chart -- this gives a
+    // visible tick scale so two exports/screenshots stay comparable. 5kb
+    // ticks for the two narrowest windows, 10kb once that would crowd.
+    const rulerH = 24;
+    const rulerTickBp = windowBp <= 10000 ? 5000 : 10000;
+
+    // Gene set per row within the window -- computed locally, never written
+    // back onto the shared row object (the live chart and an export must run
+    // over the same `rows` without clobbering each other's coordinates).
+    const genesInWindow = r =>
+      (r._allGenes || r.genes).filter(g => g.end >= -windowBp && g.start <= windowBp);
+    // Non-CDS features live in gene-poor stretches, so they must be able to
+    // push out minX/maxX -- otherwise an rRNA operon in a blank region would
+    // be squished to the plot edge. Only when the toggle is on.
+    const nonCdsInWindow = r => nonCdsToggle.checked
+      ? (r.non_cds || []).filter(f => f.end >= -windowBp && f.start <= windowBp)
+      : [];
+
+    let minX = Infinity, maxX = -Infinity;
+    extentRows.forEach(r => {
+      genesInWindow(r).forEach(g => { minX = Math.min(minX, g.start); maxX = Math.max(maxX, g.end); });
+      nonCdsInWindow(r).forEach(f => { minX = Math.min(minX, f.start); maxX = Math.max(maxX, f.end); });
+    });
+    if (!isFinite(minX)) { minX = -windowBp; maxX = windowBp; }
+    minX -= pad; maxX += pad;
+    // Reverse direction: a straight horizontal mirror of the plot (like an
+    // IGV "flip strand"), read live off the toggle so it applies to both the
+    // on-screen chart and every export without being threaded through opts.
+    // scaleX becomes monotonically decreasing when mirrored, so any code that
+    // turns two scaleX(...) calls into a [left,right] span (a gene, a non-CDS
+    // feature, an N-run, the contig baseline) must go through spanX below
+    // rather than assuming scaleX(start) <= scaleX(end).
+    const reversed = reverseToggle.checked;
+    const scaleX = reversed
+      ? x => (maxX - x) / (maxX - minX) * plotW
+      : x => (x - minX) / (maxX - minX) * plotW;
+    // Sorts a genomic [lo,hi] span's two screen-space endpoints so callers
+    // always get back [left,right] regardless of mirroring.
+    const spanX = (lo, hi) => { const a = scaleX(lo), b = scaleX(hi); return a <= b ? [a, b] : [b, a]; };
+
+    // Section grouping: normal view groups by data.sero_buckets in a fixed
+    // order (one contiguous block per serotype, in top-N-count order).
+    // flatOrder groups by contiguous runs of sero_bucket over the caller's
+    // *row order* instead -- so it still shows serotype as a dividing
+    // category, but a manual reorder that drops a row into a different
+    // serotype's run splits that run into two sections (same label, two
+    // separate blocks) rather than requiring the grouping to "win" over the
+    // reorder, or the view to collapse into one flat unlabeled block.
+    const groups = [];
+    if (flatOrder) {
+      rowsToDraw.forEach(r => {
+        const last = groups[groups.length - 1];
+        if (last && last.label === r.sero_bucket) last.rows.push(r);
+        else groups.push({ label: r.sero_bucket, rows: [r] });
+      });
+    } else {
+      const byBucket = {};
+      data.sero_buckets.forEach(b => byBucket[b] = []);
+      rowsToDraw.forEach(r => { if (!byBucket[r.sero_bucket]) byBucket[r.sero_bucket] = []; byBucket[r.sero_bucket].push(r); });
+      data.sero_buckets.forEach(b => { if (byBucket[b].length) groups.push({ label: b, rows: byBucket[b] }); });
+    }
+
+    // Gene-link ribbons (read live off the toggle, same pattern as `reversed`
+    // above, so it applies to on-screen and export alike). Rows need extra
+    // vertical room between them for the ribbon to be legible, so the row
+    // pitch effectively doubles whenever this is on.
+    const connectOn = connectToggle.checked;
+    const connectGap = connectOn ? rowH : 0;
+
+    const yOf = new Map();
+    let y = 10 + offsetY + colLabelH + rulerH;
+    const sections = [];
+    const drawnOrder = [];   // every row, in the exact order it's stacked top-to-bottom, across all sections
+    groups.forEach(({ label, rows: groupRows }) => {
+      if (sections.length) y += sectionGap;   // blank line between blocks
+      const sectionTop = y;
+      y += sectionHeaderH;
+      groupRows.forEach(r => {
+        yOf.set(r, y);
+        drawnOrder.push(r);
+        y += rowH + rowGap + connectGap;
+      });
+      sections.push({
+        label, count: groupRows.length, top: sectionTop, rowsEnd: y - rowGap - connectGap,
+      });
+    });
+    const totalH = y + 20;
+    const totalW = labelW + plotW + gutterW + 20;
+
+    sections.forEach(s => {
+      target.appendChild(el("rect", live
+        ? { class: "section-bg", x: 0, y: s.top, width: totalW, height: s.rowsEnd - s.top + 8 }
+        : { x: 0, y: s.top, width: totalW, height: s.rowsEnd - s.top + 8, fill: resolve("var(--section-bg)") }));
+      const t = el("text", live
+        ? { class: "section-label", x: 10, y: s.top + headerBaseY }
+        : { x: 10, y: s.top + headerBaseY, fill: resolve("var(--text-primary)"), "font-size": 12, "font-weight": 650, "font-family": "sans-serif" });
+      t.textContent = `${s.label}`;
+      target.appendChild(t);
+      const tc = el("text", live
+        ? { class: "section-count", x: 10 + measureApprox(s.label) + 6, y: s.top + headerBaseY }
+        : { x: 10 + measureApprox(s.label) + 6, y: s.top + headerBaseY, fill: resolve("var(--text-muted)"), "font-size": 11, "font-family": "sans-serif" });
+      tc.textContent = `(${s.count} shown)`;
+      target.appendChild(tc);
+    });
+
+    // Vertical short-name label above each fixed gutter column, once at the top.
+    if (colLabelH) {
+      const baseY = offsetY + colLabelH - 6;
+      gutterClusters.forEach((cl, i) => {
+        const cx = gutterX0 + i * (markerSize + markerGap) + markerSize / 2;
+        const t = el("text", live
+          ? { class: "col-label", x: cx, y: baseY, transform: `rotate(-90 ${cx} ${baseY})` }
+          : { x: cx, y: baseY, transform: `rotate(-90 ${cx} ${baseY})`, fill: resolve("var(--text-secondary)"), "font-size": 8, "font-family": "sans-serif", "text-anchor": "start" });
+        t.textContent = shortClusterName(cl).slice(0, 12);
+        target.appendChild(t);
+      });
+    }
+
+    // kb ruler: baseline + ticks at rulerTickBp intervals out from the
+    // anchor. Ticks are clipped to what actually fell inside [minX,maxX] --
+    // sparse flanking regions can leave real gene extents narrower than the
+    // window itself, and an unclipped tick there would land left of plotX0,
+    // over the row-label column.
+    {
+      const rulerY = offsetY + colLabelH + rulerH - 6;
+      target.appendChild(el("line", live
+        ? { class: "ruler-axis", x1: plotX0, x2: plotX0 + plotW, y1: rulerY, y2: rulerY }
+        : { x1: plotX0, x2: plotX0 + plotW, y1: rulerY, y2: rulerY, stroke: resolve("var(--baseline)"), "stroke-width": 1.6 }));
+      for (let v = -windowBp; v <= windowBp; v += rulerTickBp) {
+        const tx = scaleX(v);
+        if (tx < -0.5 || tx > plotW + 0.5) continue;
+        const px = plotX0 + tx;
+        target.appendChild(el("line", live
+          ? { class: "ruler-axis", x1: px, x2: px, y1: rulerY - 4, y2: rulerY + 4 }
+          : { x1: px, x2: px, y1: rulerY - 4, y2: rulerY + 4, stroke: resolve("var(--baseline)"), "stroke-width": 1.6 }));
+        const lbl = el("text", live
+          ? { class: "ruler-label", x: px, y: rulerY - 8 }
+          : { x: px, y: rulerY - 8, fill: resolve("var(--text-muted)"), "font-size": 11, "font-family": "sans-serif", "text-anchor": "middle" });
+        lbl.textContent = v === 0 ? "0" : `${v > 0 ? "+" : ""}${v / 1000}kb`;
+        target.appendChild(lbl);
+      }
+    }
+
+    target.appendChild(el("line", live
+      ? { class: "anchor-line", x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4 + offsetY + colLabelH, y2: totalH - 16 }
+      : { x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4 + offsetY + colLabelH, y2: totalH - 16, stroke: resolve("var(--text-muted)"), "stroke-width": 1, "stroke-dasharray": "2 3" }));
+
+    // Gene links: a per-cluster sweep down drawnOrder (including across a
+    // serotype-section boundary), connecting each gene to the *nearest* row
+    // above it that also carries its cluster -- not necessarily the very
+    // next row. When that nearest hit is the immediately adjacent row, it
+    // draws as the wide trapezoid ribbon (as before). When it isn't -- the
+    // gene is missing from one or more rows in between and reappears
+    // further down -- it draws as a thin, faint line instead, connecting
+    // straight through the skipped rows. Skip-lines are laid down first (and
+    // fade further the more rows they skip) specifically so the solid
+    // adjacent-row ribbons paint over them wherever the two overlap, and so
+    // intervening rows' own opaque content (gene arrows, backgrounds) hides
+    // most of a skip-line's length -- it only shows through the blank gaps
+    // it passes behind, which is the point: a background hint of "this gene
+    // recurs further down", not a competing foreground element.
+    if (connectOn && drawnOrder.length > 1) {
+      // clusterColor's values are always "var(--sN)" tokens (see where it's
+      // built above) -- same as the fill/stroke locals in the gene-arrow
+      // loop below, they must go through resolve() for export (which bakes
+      // them to real hex) but are used raw for live (the browser resolves
+      // the CSS custom property itself). Skipping that for the colored
+      // branch was an earlier bug: it made every export ribbon fall back to
+      // an unresolved "var(--sN)" fill, rendered as opaque black under the
+      // 0.35 opacity -- i.e. grey, regardless of the gene's real color.
+      const fillFor = g => {
+        const raw = g.is_anchor ? "var(--anchor-fill)"
+          : (g.cluster in clusterColor ? clusterColor[g.cluster]
+          : (g.is_rfe ? "var(--rfe-other-fill)" : "var(--other-fill)"));
+        return live ? raw : resolve(raw);
+      };
+      const geneH = rowH * 0.62, geneTopOff = (rowH - geneH) / 2;
+      const bottomY = r => yOf.get(r) + geneTopOff + geneH;
+      const topY = r => yOf.get(r) + geneTopOff;
+      const midX = g => { const [a, b] = spanX(g.start, g.end); return plotX0 + (a + b) / 2; };
+
+      const lastSeen = new Map();   // cluster -> { row, gene, rowIndex } of its most recent occurrence so far
+      const skipLinks = [], adjacentLinks = [];
+      drawnOrder.forEach((r, i) => {
+        genesInWindow(r).forEach(g => {
+          if (!g.cluster || g.cluster === "NA") return;
+          const prev = lastSeen.get(g.cluster);
+          if (prev) {
+            const link = { rAbove: prev.row, gAbove: prev.gene, rBelow: r, gBelow: g, skip: i - prev.rowIndex - 1 };
+            (link.skip === 0 ? adjacentLinks : skipLinks).push(link);
+          }
+          lastSeen.set(g.cluster, { row: r, gene: g, rowIndex: i });
+        });
+      });
+
+      skipLinks.forEach(({ rAbove, gAbove, rBelow, gBelow, skip }) => {
+        const y1 = bottomY(rAbove), y2 = topY(rBelow);
+        if (y2 <= y1) return;
+        const x1 = midX(gAbove), x2 = midX(gBelow);
+        const color = fillFor(gBelow);
+        // Fades further the more rows it skips, down to a visible floor.
+        const op = Math.max(0.14, 0.30 - skip * 0.015);
+        let line;
+        if (live) {
+          line = el("line", { class: "gene-link-skip", x1, y1, x2, y2 });
+          line.dataset.cluster = gBelow.cluster;
+          line.setAttribute("style", `stroke:${color};opacity:${op}`);
+        } else {
+          line = el("line", { x1, y1, x2, y2, stroke: color, "stroke-width": 3, opacity: op });
+        }
+        target.appendChild(line);
+      });
+
+      adjacentLinks.forEach(({ rAbove, gAbove, rBelow, gBelow }) => {
+        const yTop = bottomY(rAbove), yBot = topY(rBelow);
+        if (yBot <= yTop) return;
+        const [ax1, ax2] = spanX(gAbove.start, gAbove.end);
+        const [bx1, bx2] = spanX(gBelow.start, gBelow.end);
+        const points = `${plotX0 + ax1},${yTop} ${plotX0 + ax2},${yTop} ${plotX0 + bx2},${yBot} ${plotX0 + bx1},${yBot}`;
+        const color = fillFor(gBelow);
+        let ribbon;
+        if (live) {
+          ribbon = el("polygon", { class: "gene-link", points });
+          ribbon.dataset.cluster = gBelow.cluster;
+          ribbon.setAttribute("style", `fill:${color}`);
+        } else {
+          ribbon = el("polygon", { points, fill: color, opacity: 0.35 });
+        }
+        target.appendChild(ribbon);
+      });
+    }
+
+    // Row index within the current flat order, for the up/down reorder
+    // arrows' boundary checks (built once, not per-row).
+    const flatIndex = flatOrder ? new Map(rowsToDraw.map((rr, i) => [rr, i])) : null;
+
+    rowsToDraw.forEach(r => {
+      const rowY = yOf.get(r);
+
+      if (live) {
+        const boxY = rowY + (rowH - checkSize) / 2;
+        const sel = selectedGenomes.has(r.genome_id);
+        const box = el("rect", { class: "row-check" + (sel ? " checked" : ""), x: 4, y: boxY, width: checkSize, height: checkSize, rx: 2 });
+        const tick = el("path", { class: "row-check-tick", d: `M6.2 ${boxY + checkSize / 2} L8.4 ${boxY + checkSize - 2.8} L11 ${boxY + 2.8}` });
+        tick.style.display = sel ? "" : "none";
+        const toggle = (ev) => {
+          ev.stopPropagation();
+          const on = !selectedGenomes.has(r.genome_id);
+          if (on) {
+            selectedGenomes.add(r.genome_id);
+            // Manually re-ticked the very row Undo was offering to restore
+            // -- nothing left for Undo to do, so drop the now-stale offer
+            // rather than let it re-add an id that's already back.
+            if (lastRemoved && lastRemoved.genome_id === r.genome_id) lastRemoved = null;
+          } else {
+            // Capture its position before syncSelectedOrder() below drops it
+            // from selectedOrder, so Undo can put it back where it was
+            // instead of appending it back at the end.
+            lastRemoved = { genome_id: r.genome_id, index: selectedOrder.indexOf(r.genome_id) };
+            selectedGenomes.delete(r.genome_id);
+          }
+          box.classList.toggle("checked", on);
+          tick.style.display = on ? "" : "none";
+          syncSelectedOrder();
+          updateUndoLink();
+          updateExportControls();
+          // "Selected genomes only" is a live display filter, not just an
+          // export-scope marker -- so unticking a row while it's on has to
+          // make that row (and its gene links, recomputed against the new
+          // row set) disappear immediately, not just on the next unrelated
+          // redraw.
+          if (selectedFilterToggle.checked) draw(Number(windowSelect.value));
+        };
+        box.addEventListener("click", toggle);
+        tick.addEventListener("click", toggle);
+        target.appendChild(box);
+        target.appendChild(tick);
+
+        // Reorder arrows: live-view-only (never in an export -- there's no
+        // click handler to wire up in a static file, and the buttons would
+        // just be dead chrome), and only while "Selected genomes only" has
+        // flattened the view into one manually-orderable block. Up sits
+        // right after the checkbox (larger, so it's an easier target); down
+        // sits past the genome-ID text instead of stacked under up, so the
+        // two aren't crowded on top of each other.
+        if (flatOrder) {
+          const idx = flatIndex.get(r);
+          const midY = rowY + rowH / 2;
+          const upX = 27;
+          const up = el("polygon", {
+            class: "reorder-arrow" + (idx === 0 ? " disabled" : ""),
+            points: `${upX},${midY - 9} ${upX - 5.5},${midY - 1.5} ${upX + 5.5},${midY - 1.5}`,
+          });
+          const downX = labelX + measureApprox(rowLabelText(r)) + 8;
+          const down = el("polygon", {
+            class: "reorder-arrow" + (idx === rowsToDraw.length - 1 ? " disabled" : ""),
+            points: `${downX},${midY + 9} ${downX - 5.5},${midY + 1.5} ${downX + 5.5},${midY + 1.5}`,
+          });
+          // data-genome/data-dir: so the arrow-key handler (see setActiveMove
+          // in renderChart) can find and click the *current* up/down arrow
+          // for whichever row is picked up, instead of re-deriving the same
+          // neighbor-lookup + boundary-check logic a second time.
+          up.dataset.genome = r.genome_id; up.dataset.dir = "up";
+          down.dataset.genome = r.genome_id; down.dataset.dir = "down";
+          if (idx > 0) up.addEventListener("click", (ev) => { ev.stopPropagation(); moveSelected(r.genome_id, rowsToDraw[idx - 1].genome_id); });
+          if (idx < rowsToDraw.length - 1) down.addEventListener("click", (ev) => { ev.stopPropagation(); moveSelected(r.genome_id, rowsToDraw[idx + 1].genome_id); });
+          target.appendChild(up);
+          target.appendChild(down);
+        }
+      }
+
+      if (live) {
+        // In flatOrder, the name doubles as a keyboard "pick up" handle:
+        // click it to arm Up/Down arrow-key moves (setActiveMove below),
+        // which just click the row's own on-screen reorder arrow -- so
+        // keyboard and mouse can't disagree about what a move does. Left
+        // inert everywhere else (normal grouped view has no reorder to do).
+        const label = el("text", { class: "row-label" + (flatOrder ? " row-label-pickable" : ""), x: labelX, y: rowY + rowH / 2 + 3 });
+        label.textContent = rowLabelText(r);
+        if (flatOrder) {
+          label.dataset.genome = r.genome_id;
+          label.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            setActiveMove(activeMoveId === r.genome_id ? null : r.genome_id);
+          });
+        }
+        target.appendChild(label);
+      } else {
+        // Export: source type is drawn as the symbol already used in the key
+        // by default -- never printed as text even if it's one of the
+        // selected "Row labels" columns, freeing both dropdowns up for other
+        // columns. Only drawn when this dataset actually has a source-type
+        // column configured (data.metadata_source_col); otherwise silently
+        // dropped rather than falling back to a meaningless "other" glyph on
+        // every row. Any other selected column still prints as text after
+        // the strain name, same selection as the live view.
+        const sy = rowY + rowH / 2;
+        const hasSourceCol = !!data.metadata_source_col;
+        let textX = labelX;
+        if (hasSourceCol) {
+          drawSymbol(target, sourceCat(r.source_type), labelX + 4, sy, 3.5, resolve("var(--text-primary)"));
+          textX = labelX + 13;
+        }
+        const label = el("text", { x: textX, y: sy + 3, fill: resolve("var(--text-primary)"), "font-size": 10, "font-family": "monospace" });
+        label.textContent = rowLabelText(r, data.metadata_source_col);
+        target.appendChild(label);
+      }
+
+      if (r.contig_rel_start != null) {
+        const segStart = Math.max(r.contig_rel_start, -windowBp);
+        const segEnd = Math.min(r.contig_rel_end, windowBp);
+        if (segEnd > segStart) {
+          const [sx1, sx2] = spanX(segStart, segEnd);
+          target.appendChild(el("line", live
+            ? { class: "seq-line", x1: plotX0 + sx1, x2: plotX0 + sx2, y1: rowY + rowH / 2, y2: rowY + rowH / 2 }
+            : { x1: plotX0 + sx1, x2: plotX0 + sx2, y1: rowY + rowH / 2, y2: rowY + rowH / 2, stroke: resolve("var(--seq-line)"), "stroke-opacity": resolve.opacity("var(--seq-line)"), "stroke-width": 1.5 }));
+        }
+      }
+
+      // Scaffold-gap N-runs: shaded bands behind the genes. Clip to the plotted
+      // domain [minX,maxX] (gene extents, what scaleX maps) -- NOT to the window:
+      // N-runs sit in gene-poor stretches, so a window-clip would place them
+      // outside the plot, bleeding into the labels or gutter.
+      // Real runs can be as small as ~10bp (sub-pixel here), so floor the width.
+      (r.n_runs || []).forEach(nr => {
+        const s = Math.max(nr.start, minX), e = Math.min(nr.end, maxX);
+        if (e <= s) return;
+        const [bx1, bx2] = spanX(s, e);
+        const bx = plotX0 + bx1;
+        const bw = Math.max(4, bx2 - bx1);
+        target.appendChild(el("rect", live
+          ? { class: "n-gap", x: bx, y: rowY + 2, width: bw, height: rowH - 4 }
+          : { x: bx, y: rowY + 2, width: bw, height: rowH - 4, fill: resolve("var(--n-gap)"), "fill-opacity": resolve.opacity("var(--n-gap)") }));
+      });
+
+      // Non-CDS features (rRNA/tRNA/tmRNA/repeat) -- a low-profile colored
+      // layer, thinner than the CDS arrows, drawn under them.
+      nonCdsInWindow(r).forEach(f => {
+        const s = Math.max(f.start, minX), e = Math.min(f.end, maxX);
+        if (e <= s) return;
+        const [nx1, nx2] = spanX(s, e);
+        const nx = plotX0 + nx1;
+        const nw = Math.max(2.5, nx2 - nx1);
+        const nh = rowH * 0.42;
+        const nyTop = rowY + (rowH - nh) / 2;
+        const ncColor = NC_COLOR[f.ftype] || "var(--nc-repeat)";
+        let ncRect;
+        if (live) {
+          ncRect = el("rect", { class: "non-cds", x: nx, y: nyTop, width: nw, height: nh, rx: 1.5 });
+          ncRect.setAttribute("style", `fill:${ncColor}`);
+          ncRect.addEventListener("mouseenter", (ev) => showNonCdsTooltip(ev, f));
+          ncRect.addEventListener("mousemove", (ev) => positionTooltip(ev));
+          ncRect.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+        } else {
+          ncRect = el("rect", { x: nx, y: nyTop, width: nw, height: nh, rx: 1.5, fill: resolve(ncColor) });
+        }
+        target.appendChild(ncRect);
+      });
+
+      genesInWindow(r).forEach(g => {
+        const [x1r, x2r] = spanX(g.start, g.end);
+        const x1 = plotX0 + x1r, x2 = plotX0 + x2r;
+        const w = Math.max(1.4, x2 - x1);
+        const h = rowH * 0.62;
+        const yTop = rowY + (rowH - h) / 2;
+        const headLen = Math.min(w * 0.35, 6);
+
+        let cls = "other", colored = false, fill, stroke;
+        if (g.is_anchor) { cls = "anchor"; fill = "var(--anchor-fill)"; stroke = "var(--anchor-stroke)"; }
+        else if (g.cluster in clusterColor) { cls = ""; colored = true; fill = clusterColor[g.cluster]; stroke = clusterColor[g.cluster]; }
+        else if (g.is_rfe) { cls = "rfe-other"; fill = "var(--rfe-other-fill)"; stroke = "var(--rfe-other-stroke)"; }
+        else { fill = "var(--other-fill)"; stroke = "var(--other-stroke)"; }
+
+        // Mirroring the plot also reverse-complements it, so the arrowhead
+        // flips to the gene's other end (its true strand, g.strand, is left
+        // untouched everywhere else -- tooltips still report real biology).
+        const drawStrand = reversed ? (g.strand === "+" ? "-" : "+") : g.strand;
+        const points = drawStrand === "+"
+          ? `${x1},${yTop} ${x1 + w - headLen},${yTop} ${x1 + w},${yTop + h/2} ${x1 + w - headLen},${yTop + h} ${x1},${yTop + h}`
+          : `${x1 + headLen},${yTop} ${x1 + w},${yTop} ${x1 + w},${yTop + h} ${x1 + headLen},${yTop + h} ${x1},${yTop + h/2}`;
+
+        // stx typing rides on top of whatever this box already was: the fill
+        // stays exactly as the RFE colouring left it, and only the border is
+        // repainted (thick + subtype-coloured, dashed if the operon isn't
+        // COMPLETE). `stxBox` is "" for every non-stx gene, so the common case
+        // is byte-for-byte what it was before.
+        const stxBox = stxEnabled ? stxBoxStyle(g, w) : "";
+        let poly;
+        if (live) {
+          poly = el("polygon", { class: `gene-arrow ${cls}${stxBox ? " stx" : ""}`, points });
+          if (colored || stxBox) {
+            poly.setAttribute("style", (colored ? `fill:${fill};stroke:${stroke};` : "") + stxBox);
+          }
+          if (stxBox) poly.dataset.stx = g.stx_type;
+          poly.dataset.cluster = g.cluster;
+          poly.addEventListener("mouseenter", (ev) => showTooltip(ev, g));
+          poly.addEventListener("mousemove", (ev) => positionTooltip(ev));
+          poly.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+          poly.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            if (g.cluster === "NA") return;
+            applyPin(pinnedCluster === g.cluster ? null : g.cluster);
+          });
+          poly.addEventListener("dblclick", (ev) => {
+            ev.stopPropagation();
+            if (g.cluster === "NA") return;
+            openSequencePanel(g.cluster, r.genome_id, g.product);
+          });
+        } else {
+          const attrs = { points, fill: resolve(fill), stroke: resolve(stroke), "stroke-width": 0.75 };
+          if (stxBox) {
+            attrs.stroke = resolve(stxColorVar(g.stx_type));
+            attrs["stroke-width"] = stxStrokeWidth(w);
+            // paint-order is SVG2. Browsers and Inkscape honour it (band
+            // outside the shape, fill intact); an importer that doesn't just
+            // centres the stroke, which eats a little fill but still draws the
+            // right thick coloured border -- an acceptable degrade, not a break.
+            attrs["paint-order"] = "stroke";
+            if (stxIsPartial(g)) attrs["stroke-dasharray"] = STX_DASH;
+          }
+          poly = el("polygon", attrs);
+        }
+        target.appendChild(poly);
+      });
+
+      // ---- per-gene strain-comparison status boxes: one fixed column per tracked gene ----
+      const markerMap = {};
+      (r.gutter_markers || []).forEach(m => { markerMap[m.cluster] = m.state; });
+      gutterClusters.forEach((cl, i) => {
+        const state = markerMap[cl];
+        if (!state) return;
+        const mx = gutterX0 + i * (markerSize + markerGap);
+        const my = rowY + (rowH - markerSize) / 2;
+        const markerFill = clusterColor[cl] || "var(--rfe-other-fill)";
+        const strokeColor = state === "visible" ? "none"
+          : state === "same_contig_outside_window" ? "var(--marker-same-border)"
+          : state === "refound_only" ? "var(--marker-refound-border)"
+          : "var(--text-primary)";
+        let rect;
+        if (live) {
+          const stateClass = state === "visible" ? "marker-visible"
+            : state === "different_contig" ? "marker-diff"
+            : state === "same_contig_outside_window" ? "marker-same-contig"
+            : "marker-refound";
+          rect = el("rect", { class: `marker-sq ${stateClass}`, x: mx, y: my, width: markerSize, height: markerSize, rx: 2 });
+          rect.setAttribute("style", `fill:${markerFill};stroke:${strokeColor}`);
+          rect.dataset.cluster = cl;
+          rect.addEventListener("mouseenter", (ev) => showMarkerTooltip(ev, cl, state));
+          rect.addEventListener("mousemove", (ev) => positionTooltip(ev));
+          rect.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+          rect.addEventListener("click", (ev) => {
+            ev.stopPropagation();
+            applyPin(pinnedCluster === cl ? null : cl);
+          });
+        } else {
+          const thickBorder = state === "same_contig_outside_window" || state === "refound_only";
+          const attrs = { x: mx, y: my, width: markerSize, height: markerSize, rx: 2, fill: resolve(markerFill), "stroke-width": thickBorder ? 1.8 : 1.3 };
+          attrs.stroke = strokeColor === "none" ? "none" : resolve(strokeColor);
+          rect = el("rect", attrs);
+        }
+        target.appendChild(rect);
+      });
+    });
+
+    return { width: totalW, height: totalH };
+  }
+
+  function draw(windowBp) {
+    svg.innerHTML = "";
+    pinnedCluster = null;
+    // Filter boxes narrow which of the already-fetched `rows` get drawn --
+    // purely a display-time restriction, no re-fetch.
+    let shown = rows.filter(passesFilters);
+    // "Selected genomes only": free-form reorder via the up/down arrows,
+    // instead of the usual carrier-count/serotype-bucketed order. Applies
+    // to export too (same read-the-checkbox-live pattern as reversed/
+    // connectOn) -- only the arrow controls themselves are live-only.
+    const reorderable = selectedFilterToggle.checked;
+    if (reorderable) {
+      syncSelectedOrder();
+      const orderIndex = new Map(selectedOrder.map((id, i) => [id, i]));
+      shown = shown.slice().sort((a, b) => orderIndex.get(a.genome_id) - orderIndex.get(b.genome_id));
+    }
+    filterStatusEl.textContent = (shown.length === rows.length)
+      ? ""
+      : `${shown.length} of ${rows.length} sampled genomes match the filter${filterColSelects.length > 1 ? "s" : ""}`;
+    // The picked-up row (if any) only means something while it's both
+    // reorderable and still on screen -- e.g. unticking it, or turning
+    // "Selected genomes only" back off, drops it out from under the
+    // highlight/arrow-key handling, so drop the pick right along with it.
+    if (!reorderable || !shown.some(r => r.genome_id === activeMoveId)) activeMoveId = null;
+    // The stx key tracks the filtered set, so rebuild it alongside the tracks.
+    buildLegend();
+    const dim = renderTracks(svg, { rows: shown, extentRows: shown, windowBp, live: true, flatOrder: reorderable });
+    svg.setAttribute("width", dim.width);
+    svg.setAttribute("height", dim.height);
+    svg.setAttribute("viewBox", `0 0 ${dim.width} ${dim.height}`);
+    setActiveMove(activeMoveId);   // re-apply the highlight class to the freshly rebuilt DOM
+  }
+
+  // ---- SVG export ----------------------------------------------------------
+  // Concrete light-theme hex snapshot so exported files are portable (no CSS
+  // vars, classes, or <style> block). Reading the live vars means a future
+  // palette selector flows through automatically.
+  const EXPORT_VARS = [
+    "--s1","--s2","--s3","--s4","--s5","--s6","--s7","--s8","--s9","--s10","--s11","--s12",
+    "--s13","--s14","--s15","--s16",
+    "--other-fill","--other-stroke","--rfe-other-fill","--rfe-other-stroke",
+    "--marker-same-border","--marker-refound-border",
+    "--anchor-fill","--anchor-stroke","--text-primary","--text-secondary","--text-muted",
+    "--section-bg","--seq-line","--n-gap","--nc-rrna","--nc-trna","--nc-repeat","--surface-1",
+    // stx subtype borders -- baked like everything else so an exported figure
+    // keeps the encoding without the stylesheet. Harmless when stx is off:
+    // they resolve to their light values and nothing ever references them.
+    ...STX_TYPES.map(t => `--stx-${t}`),
+  ];
+  function bakeLightVars() {
+    const root = document.documentElement;
+    const prev = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", "light");
+    const cs = getComputedStyle(root);
+    const map = {};
+    EXPORT_VARS.forEach(n => { map[n] = (cs.getPropertyValue(n) || "").trim() || "#000"; });
+    if (prev === null) root.removeAttribute("data-theme"); else root.setAttribute("data-theme", prev);
+    return map;
+  }
+  // rgba(...) in a `stroke`/`fill` attribute renders fine in every browser
+  // but is silently dropped (element ends up invisible) by Inkscape's SVG
+  // importer -- it wants a plain opaque color plus a separate
+  // stroke-opacity/fill-opacity attribute. --seq-line and --n-gap are the
+  // only export vars carrying alpha, so split it out here rather than at
+  // each call site: resolve() always returns an opaque color, and the
+  // alpha (1 for anything that wasn't rgba(...) to begin with) is
+  // available via resolve.opacity() for callers that need to set it
+  // explicitly.
+  function splitAlpha(v) {
+    const m = /^rgba\(([^,]+),([^,]+),([^,]+),([^)]+)\)$/i.exec(v || "");
+    if (!m) return { color: v, opacity: 1 };
+    return { color: `rgb(${m[1].trim()},${m[2].trim()},${m[3].trim()})`, opacity: parseFloat(m[4]) };
+  }
+  function makeResolver(map) {
+    function lookup(token) {
+      if (token == null) return null;
+      const s = String(token).trim();
+      const m = /^var\((--[a-z0-9-]+)\)$/i.exec(s);
+      return m ? (map[m[1]] || "#000") : s;
+    }
+    const resolve = token => {
+      const v = lookup(token);
+      return v == null ? v : splitAlpha(v).color;
+    };
+    resolve.opacity = token => {
+      const v = lookup(token);
+      return v == null ? 1 : splitAlpha(v).opacity;
+    };
+    return resolve;
+  }
+
+  function buildTitle(resolve, n, windowBp) {
+    const g = el("g", {});
+    const ann = (data.anchor_annotation || "").split(";").filter(Boolean)[0] || "";
+    const date = new Date().toISOString().slice(0, 10);
+    const t = el("text", { x: 0, y: 14, fill: resolve("var(--text-primary)"), "font-size": 14, "font-weight": 700, "font-family": "sans-serif" });
+    t.textContent = `anchor ${anchorLabel}${ann ? " (" + ann + ")" : ""}`;
+    g.appendChild(t);
+    const sub = el("text", { x: 0, y: 31, fill: resolve("var(--text-muted)"), "font-size": 11.5, "font-family": "sans-serif" });
+    sub.textContent = `${data.anchor_cluster} · ${n} genome${n === 1 ? "" : "s"} · ±${(windowBp / 1000).toFixed(0)}kb flanking · exported ${date}`;
+    g.appendChild(sub);
+    return { node: g, height: 40 };
+  }
+
+  function buildLegendGroup(resolve, maxWidth, presentCats, nCols, showGutter, colWidth, fontSize) {
+    const g = el("g", {});
+    // Column grid so items line up in neat columns (mirrors the live HTML
+    // legend); `place()` itself lays out row-major by call order, so the
+    // RFE-cluster block below feeds it a column-major-reindexed call order
+    // (columnMajorOrder) to make it read top-to-bottom per column instead.
+    // Print uses fewer columns (wider cells) so long feature names don't
+    // overlap. `colWidth`, when given, overrides the derived maxWidth/cols
+    // spacing -- used to keep the Screen export's key columns bunched
+    // together instead of spreading edge-to-edge across its much wider canvas.
+    // `fontSize` likewise defaults to 9 but Screen bumps it slightly, since
+    // it isn't uniform-scaled down to a physical page size the way A4 is.
+    const cols = nCols || 4, rowH = 14, swW = 10, swH = 7, gapSW = 5, padX = 0, padY = 0;
+    const colW = colWidth || (maxWidth - padX * 2) / cols;
+    const fs = fontSize || 9;
+    let idx = 0, extraY = 0;
+    const textFill = resolve("var(--text-secondary)");
+    const place = (drawSwatch, text, swWidth) => {
+      const col = idx % cols, row = Math.floor(idx / cols);
+      const cx = padX + col * colW, cy = padY + row * rowH + extraY;
+      drawSwatch(cx, cy);
+      const t = el("text", { x: cx + swWidth + gapSW, y: cy + 7, fill: textFill, "font-size": fs, "font-family": "sans-serif" });
+      t.textContent = text;
+      g.appendChild(t);
+      idx++;
+    };
+    // Finish the current row, draw a full-width rule, and start the next group
+    // on a fresh row below it.
+    const divider = () => {
+      if (idx % cols !== 0) idx = (Math.floor(idx / cols) + 1) * cols;
+      const y = padY + (idx / cols) * rowH + extraY + 4;
+      g.appendChild(el("line", { x1: padX, y1: y, x2: maxWidth - padX, y2: y, stroke: resolve("var(--text-muted)"), "stroke-width": 0.6 }));
+      extraY += 9;
+    };
+    // Column-major, matching the live HTML legend (see columnMajorOrder) --
+    // a blank slot just advances idx without drawing anything.
+    columnMajorOrder(data.top_rfe_clusters, cols).forEach(c => {
+      if (c == null) { idx++; return; }
+      const label = (data.cluster_labels[c] || c).split(";")[0];
+      const fill = resolve(clusterColor[c] || "var(--rfe-other-fill)");
+      place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill })), `${c} — ${label.slice(0, 38)}`, swW);
+    });
+    [["other RFE feature", "var(--rfe-other-fill)"]].forEach(([txt, v]) => {
+      const fill = resolve(v);
+      place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill })), txt, swW);
+    });
+    place((x, y) => {
+      g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill: resolve("var(--anchor-fill)") }));
+      g.appendChild(el("rect", { x: x - 1.5, y: y - 0.5, width: swW + 3, height: swH + 3, rx: 3, fill: "none", stroke: resolve("var(--anchor-stroke)"), "stroke-width": 1 }));
+    }, `anchor gene (${anchorLabel})`, swW);
+    if (data.n_runs_included) place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill: resolve("var(--n-gap)"), "fill-opacity": resolve.opacity("var(--n-gap)") })), `assembly gap (run of N, ≥${data.min_n_run || 10}bp)`, swW);
+    if (nonCdsToggle.checked) {
+      [["rRNA (non-CDS)", "var(--nc-rrna)"], ["tRNA / other ncRNA", "var(--nc-trna)"], ["repeat region", "var(--nc-repeat)"]].forEach(([txt, v]) => {
+        const fill = resolve(v);
+        place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill })), txt, swW);
+      });
+    }
+    // Quick-comparison key -- only when the gutter column is included.
+    if (showGutter !== false) {
+      divider();
+      const neutral = resolve("var(--other-fill)"), edge = resolve("var(--text-secondary)");
+      const sameB = resolve("var(--marker-same-border)"), refoundB = resolve("var(--marker-refound-border)");
+      // Export: drop the repeated "Quick comparison:" prefix (the divided
+      // section already groups these) so the entries fit the narrower key.
+      const markerKeys = [
+        ["present, different contig", { stroke: edge, sw: 1.3 }],
+        ["present, same contig, outside window", { stroke: sameB, sw: 1.8 }],
+        ["present via Panaroo \"refound\" only", { stroke: refoundB, sw: 1.8 }],
+      ];
+      markerKeys.forEach(([txt, st]) => {
+        place((x, y) => {
+          const a = { x, y: y, width: 8, height: 8, rx: 2, fill: neutral };
+          if (st.stroke) { a.stroke = st.stroke; a["stroke-width"] = st.sw; }
+          g.appendChild(el("rect", a));
+        }, txt, 8);
+      });
+    }
+    // stx subtype key -- same drawn-only, family-grouped set as the live
+    // legend, drawn as rings (fill + a thick coloured stroke) so the exported
+    // key matches the exported boxes. Dashed entry carries the completeness
+    // meaning once for the group, as above.
+    if (stxDrawn.length || stxElsewhere.length) {
+      divider();
+      const neutralFill = resolve("var(--other-fill)");
+      let fam = null;
+      stxDrawn.forEach(t => {
+        const f = stxFamily(t);
+        if (f !== fam) {
+          fam = f;
+          place(() => {}, `${f === "stx1" ? "Shiga toxin 1" : "Shiga toxin 2"} subtypes:`, 0);
+        }
+        const paint = resolve(stxColorVar(t));
+        place((x, y) => g.appendChild(el("rect", {
+          x: x + 1, y: y + 1.5, width: swW - 2, height: swH - 1, rx: 2,
+          fill: neutralFill, stroke: paint, "stroke-width": 2,
+        })), t + (STX_TYPES.includes(t) ? "" : ` (unlisted, shown as ${f})`), swW);
+      });
+      if (stxDrawn.length) {
+        place((x, y) => g.appendChild(el("rect", {
+          x: x + 1, y: y + 1.5, width: swW - 2, height: swH - 1, rx: 2,
+          fill: neutralFill, stroke: resolve("var(--text-secondary)"), "stroke-width": 2,
+          "stroke-dasharray": "2.5 2",
+        })), "dashed = operon not COMPLETE", swW);
+      }
+      if (stxElsewhere.length) {
+        place(() => {}, `also in these genomes, outside the window: ${stxElsewhere.join(", ")}`, 0);
+      }
+    }
+    // Source-type (host) symbol key (only categories present in this export).
+    const cats = SOURCE_CATS.filter(([cat]) => !presentCats || presentCats.has(cat));
+    if (cats.length) {
+      divider();
+      const symbolPaint = resolve("var(--text-primary)");
+      cats.forEach(([cat, label]) => {
+        place((x, y) => drawSymbol(g, cat, x + 4, y + 4, 2.8, symbolPaint), `source: ${label}`, 8);
+      });
+    }
+    return { node: g, height: Math.ceil(idx / cols) * rowH + padY + extraY };
+  }
+
+  const MM = 3.779528;            // px per mm at 96dpi
+  const PRINT_MARGIN_MM = 10;     // white margin inside the A4 page
+  const FONT_FLOOR_PT = 6;        // warn if row labels would print smaller
+  const PRINT_PROFILES = {
+    // Compact publication layouts. plotW is deliberately ~half the page-fill
+    // width (denser genes) so more genomic context fits; pad/markerLeftPad trim
+    // whitespace between the name, the gene track and the gutter. keyCols keeps
+    // the long feature names from overlapping in the narrower key.
+    "a4-landscape": { pageWmm: 297, pageHmm: 210, labelW: 130, plotW: 340, maxGutter: 12, keyCols: 3, pad: 60, markerLeftPad: 6, maxWindowBp: 20000 },
+    "a4-portrait":  { pageWmm: 210, pageHmm: 297, labelW: 120, plotW: 240, maxGutter: 8,  keyCols: 2, pad: 50, markerLeftPad: 6, maxWindowBp: 10000 },
+  };
+
+  function exportSvg(scope, format) {
+    let shown = rows.filter(passesFilters);
+    // Same reorder-when-checked logic as draw() -- the up/down arrows
+    // themselves are live-only UI, but the custom order they produce
+    // carries into export just like every other display toggle here does.
+    const reorderable = selectedFilterToggle.checked;
+    if (reorderable) {
+      syncSelectedOrder();
+      const orderIndex = new Map(selectedOrder.map((id, i) => [id, i]));
+      shown = shown.slice().sort((a, b) => orderIndex.get(a.genome_id) - orderIndex.get(b.genome_id));
+    }
+    const exportRows = (scope === "selected")
+      ? shown.filter(r => selectedGenomes.has(r.genome_id))
+      : shown;
+    if (!exportRows.length) return null;
+
+    const resolve = makeResolver(bakeLightVars());
+    const margin = 16;
+    const p = PRINT_PROFILES[format] || null;   // null => screen (native)
+    const nGut = data.top_rfe_clusters.length;
+
+    // Layout params. Screen keeps the native wide layout. Print uses a compact
+    // profile: denser (narrower) gene track, trimmed padding, and a window
+    // capped per orientation.
+    const showGutter = exportGutter.checked;
+    let labelW, plotW, maxGutter, windowBp, pad, markLP;
+    if (p) {
+      labelW = p.labelW; plotW = p.plotW;
+      maxGutter = Math.min(nGut, p.maxGutter);
+      windowBp = Math.min(Number(windowSelect.value), p.maxWindowBp);
+      pad = p.pad; markLP = p.markerLeftPad;
+    } else {
+      labelW = 200; plotW = 1280; maxGutter = nGut;
+      windowBp = Number(windowSelect.value);
+    }
+    // Quick-comparison (gutter) toggle: when off, reclaim its width for the
+    // gene track and drop its columns + key entries.
+    if (!showGutter) {
+      plotW += (markLP ?? 14) + maxGutter * (9 + 3);
+      maxGutter = 0; markLP = 0;
+    }
+    const mlp = markLP ?? 14;
+    const chartW = labelW + plotW + (maxGutter ? mlp + maxGutter * (9 + 3) : 0) + 20;
+
+    const out = el("svg", {});
+    out.setAttribute("xmlns", NS);
+
+    const title = buildTitle(resolve, exportRows.length, windowBp);
+    title.node.setAttribute("transform", `translate(${margin}, ${margin})`);
+
+    // Empty (not just unfiltered) when there's no source-type column
+    // configured for this dataset, so the source-symbol key section doesn't
+    // appear at all -- see the matching guard in renderTracks's export branch.
+    const presentCats = data.metadata_source_col
+      ? new Set(exportRows.map(r => sourceCat(r.source_type)))
+      : new Set();
+    const legendTop = margin + title.height + 10;
+    // Screen's canvas is much wider than A4's compact profiles (chartW scales
+    // with plotW=1280), so deriving column width from chartW/cols would spread
+    // the key edge-to-edge; pin it to a fixed, bunched-together width instead
+    // (comparable to what the A4 profiles already use) and let it leave
+    // trailing whitespace on the right rather than stretch.
+    const SCREEN_KEY_COL_W = 220;
+    const SCREEN_KEY_FONT_SIZE = 10.5;   // slightly larger than the 9px A4/default key text
+    // Key the export off exactly what the export contains -- with scope
+    // "selected" that is narrower than the on-screen set -- then put the live
+    // view's own key back, since these share module state.
+    recomputeStxKey(exportRows);
+    const legend = buildLegendGroup(resolve, chartW, presentCats, p ? p.keyCols : 4, showGutter,
+      p ? null : SCREEN_KEY_COL_W, p ? null : SCREEN_KEY_FONT_SIZE);
+    recomputeStxKey(rows.filter(passesFilters));
+    legend.node.setAttribute("transform", `translate(${margin}, ${legendTop})`);
+
+    const tracksTop = legendTop + legend.height + 12;
+    const tracksG = el("g", { transform: `translate(${margin}, 0)` });
+    out.appendChild(tracksG);
+    const dim = renderTracks(tracksG, { rows: exportRows, extentRows: p ? exportRows : shown, windowBp, live: false, resolve, offsetY: tracksTop, labelW, plotW, maxGutter, pad, markerLeftPad: markLP, sectionHeaderH: 16, sectionGap: 12, flatOrder: reorderable });
+
+    const canvasW = chartW + margin * 2;
+    const canvasH = dim.height + margin;
+    const bg = el("rect", { x: 0, y: 0, width: canvasW, height: canvasH, fill: resolve("var(--surface-1)") });
+    out.insertBefore(bg, out.firstChild);
+    out.appendChild(title.node);
+    out.appendChild(legend.node);
+    out.setAttribute("viewBox", `0 0 ${canvasW} ${canvasH}`);
+
+    if (p) {
+      // Uniform-scale the whole figure to fit within the A4 usable area (never
+      // upscale); size the file in mm so it drops into a manuscript at final
+      // physical size with no letterboxing or clipping.
+      const usableWpx = (p.pageWmm - 2 * PRINT_MARGIN_MM) * MM;
+      const usableHpx = (p.pageHmm - 2 * PRINT_MARGIN_MM) * MM;
+      const scale = Math.min(usableWpx / canvasW, usableHpx / canvasH, 1);
+      const printedPt = 10 * scale * 0.75;   // 10px row label -> pt on the page
+      if (printedPt < FONT_FLOOR_PT) {
+        const ok = confirm(
+          `This figure scales to ~${printedPt.toFixed(1)}pt row labels on A4 ${format.split("-")[1]}, ` +
+          `below the ${FONT_FLOOR_PT}pt print floor.\n\n` +
+          `Fewer genomes (use "Export selected") will read better. Export anyway?`);
+        if (!ok) return null;
+      }
+      out.setAttribute("width", (canvasW * scale / MM).toFixed(2) + "mm");
+      out.setAttribute("height", (canvasH * scale / MM).toFixed(2) + "mm");
+    } else {
+      out.setAttribute("width", canvasW);
+      out.setAttribute("height", canvasH);
+    }
+    return out;
+  }
+
+  function downloadSvg(node, scope, format) {
+    const xml = new XMLSerializer().serializeToString(node);
+    const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', xml], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const safe = String(data.anchor_cluster).replace(/[^A-Za-z0-9._-]+/g, "_");
+    const date = new Date().toISOString().slice(0, 10);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `pangenome_${safe}_${scope}_${format}_${date}.svg`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function runExport(scope) {
+    const format = exportFormat.value;
+    const node = exportSvg(scope, format);
+    if (node) downloadSvg(node, scope, format);
+  }
+
+  // Static preview: opens the exact SVG a real export would produce (same
+  // exportSvg() call, so print-profile layout, row selection, and gene-link
+  // ribbons are all already correct for the chosen scope -- see exportSvg)
+  // in a new tab, without saving a file. Not interactive -- close the tab
+  // and adjust selections/toggles back in the main view to change anything.
+  function runPreview(scope) {
+    const format = exportFormat.value;
+    const node = exportSvg(scope, format);
+    if (!node) return;
+    const xml = new XMLSerializer().serializeToString(node);
+    const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n', xml], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (!win) {
+      alert("Preview was blocked by the browser's popup blocker -- allow popups for this page and try again.");
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  // Whole-contig FASTA for the ticked genomes -- a server round-trip (unlike
+  // the SVG exports above, which are pure client-side redraws of data
+  // already fetched), since only the server has the assembly sequence
+  // (read from each genome's own GFF ##FASTA block). Raw assembly
+  // orientation, not flipped to the chart's anchor-relative display sense.
+  async function runContigExport() {
+    if (!selectedGenomes.size) return;
+    const prevLabel = exportContigsBtn.textContent;
+    exportContigsBtn.disabled = true;
+    exportContigsBtn.textContent = "Exporting…";
+    try {
+      const genomes = Array.from(selectedGenomes).join(",");
+      const resp = await fetch(`/api/export_contigs?anchor=${encodeURIComponent(data.anchor_cluster)}&genomes=${encodeURIComponent(genomes)}`);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        alert(`Contig export failed: ${err.error || resp.statusText}`);
+        return;
+      }
+      const skipped = resp.headers.get("X-Skipped-Genomes");
+      const blob = await resp.blob();
+      const cd = resp.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="([^"]+)"/);
+      const filename = m ? m[1] : `${data.anchor_cluster}_contigs.fasta`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (skipped) alert(`Contigs exported, but skipped:\n${skipped}`);
+    } catch (e) {
+      alert(`Contig export failed: ${e}`);
+    } finally {
+      exportContigsBtn.textContent = prevLabel;
+      updateExportControls();
+    }
+  }
+
+  exportSelectedBtn.onclick = () => runExport("selected");
+  exportAllBtn.onclick = () => runExport("all");
+  previewSelectedBtn.onclick = () => runPreview("selected");
+  previewAllBtn.onclick = () => runPreview("all");
+  exportContigsBtn.onclick = runContigExport;
+  exportClearEl.onclick = () => {
+    if (!selectedGenomes.size) return;
+    selectedGenomes.clear();
+    selectedOrder = [];
+    lastRemoved = null;   // nothing meaningful left for a single-slot Undo to restore into
+    updateUndoLink();
+    updateExportControls();
+    draw(Number(windowSelect.value));
+  };
+
+  draw(defaultWindow);
+}
+</script>

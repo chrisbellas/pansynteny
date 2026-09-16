@@ -1,0 +1,96 @@
+# Example config for pangenome_viewer.py / pgv_lookup.py.
+#
+# Copy this file to "pangenome_viewer.config" (no ".example") in the same
+# directory as the scripts and fill in absolute paths for your dataset --
+# it's picked up automatically. Any value can
+# instead be passed as a CLI flag (e.g. --panaroo-csv ...), which overrides
+# whatever is set here. Blank/missing values are treated as "not set".
+#
+# Only panaroo_csv and prokka_dir are required. Everything else is
+# optional -- see the module docstring in pangenome_viewer.py for exactly
+# which feature turns off when a given key is left blank.
+#
+# The non-path values below (column names, suffixes) are pre-filled with
+# this deployment's actual values as a realistic starting point -- replace
+# them with whatever your own metadata table actually uses.
+
+# --- required ---
+# panaroo gene_presence_absence.csv full path
+panaroo_csv =
+#  full path to prokka directory
+prokka_dir =
+
+
+
+# --- optional---
+# metadata_tsv is requird to have 'metadata_join_col' 
+# This is the the join key against each genome's genome_id. This is usually the
+# assambly fasta file's name, eg ESC_WC2492AA_AS 
+
+# The file can carry any number of other columns which can be used to filter data
+# 
+# Enterobase exported tsv matadata is optimised.
+# Tab- or comma-delimited both work; the delimiter is detected from the header.
+#
+#   Assembly barcode(Assembly stats)  O Antigen(Serotype Prediction)  H Antigen(Serotype Prediction)  Source Type
+#   ESC_WC2492AA_AS                   O157                            H7                               Ovine/Goat (Caprinae)
+#
+metadata_tsv =
+metadata_join_col = Assembly barcode(Assembly stats)
+
+#only needed if want to combine serotype data
+metadata_o_antigen_col = O Antigen(Serotype Prediction) 
+metadata_h_antigen_col = H Antigen(Serotype Prediction)
+
+#To specify host species from enterobase metadata
+metadata_source_col = Source Type
+
+# RFE feature-importance coloring. Expects a tab- or comma-delimited file
+# -- the delimiter is detected from the header, not from the file
+# extension -- with a "feature" column (the Panaroo cluster name), then
+# optional "importance" and "Annotation" (both
+# independent of each other -- "Annotation" is a curated
+# short name, e.g. "nleC", that supersedes the Prokka annotation in the
+# legend/tooltip/search when present; note the capital A, a lowercase
+# "annotation" column is not read). Any other columns present are just
+# ignored, e.g.:
+#
+#   feature       importance          Annotation
+#   group_10695   0.012300539192215   nleC
+#
+# These do not need to be ML features, it can be any gene you want to highligh with 'feature' and 'Annotation'
+# ) ---
+rfe_features_txt =
+
+# MGE-type labels (genomad combined output) -expects a
+# tab-delimited file with pangenome_gene_cluster/genome_id/locus_tag/
+# mge_type columns -- any other columns present are just ignored, e.g.:
+#
+#   pangenome_gene_cluster  genome_id       locus_tag       mge_type
+#   group_10918             ESC_AA7970AA_AS HJIKEAHO_00003  virus
+#
+# ) ---
+mge_genes_tsv =
+
+# stx subtyping (stxtyper output) - expects the stxtyper report, one row
+# per operon call, with #name/stx_type/target_contig/target_start/
+# target_stop columns (the other stxtyper columns are read when present
+# and ignored otherwise). Tab- or comma-delimited; the delimiter is
+# detected from the header. Normally the per-strain reports concatenated
+# into one file, e.g.:
+#
+#   #name            target_contig                    stx_type  operon    identity  target_start  target_stop
+#   ESC_AA7970AA_AS  NODE_107_length_3367_cov_5.65253 stx1a     COMPLETE  100.00    1652          2875
+#
+# '#name' has to be the same strain name as the Panaroo/Prokka genome
+# stem (after strip_genome_suffixes below) -- that is what stxtyper's
+# --name flag sets. Adds an "stx type (stxtyper)" filter/row-label column
+# and stx labels on the stxA/stxB genes themselves; the stxtyper
+# coordinates are joined onto Prokka's renamed contigs by contig length.
+# ) ---
+stxtyper_tsv =
+
+# --- optional: cosmetic only -- comma-separated suffixes to strip from a
+# Panaroo/Prokka genome-column "stem" for a shorter display genome_id,
+# e.g. ".result,.scaffold" ---
+strip_genome_suffixes = .result,.scaffold

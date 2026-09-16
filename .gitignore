@@ -1,0 +1,20 @@
+# Deployment-specific: real absolute paths for one machine/dataset.
+# See pangenome_viewer.config.example for the template.
+pangenome_viewer.config
+
+# pgv_lookup.py's byte-offset index cache -- rebuild with
+# `python3 pgv_lookup.py --build-index`.
+cluster_offsets.json
+
+# pangenome_viewer.py's own byte-offset index caches (single-cluster
+# lookups for the sequence panel + contig export), rebuilt automatically
+# if missing or stale.
+mge_offsets.json
+
+__pycache__/
+*.pyc
+server.log
+
+# Working notes: references local paths, internal SHAs and open questions.
+# Kept alongside the code, deliberately not published.
+OUTSTANDING_stx_work.md
