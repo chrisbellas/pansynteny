@@ -47,7 +47,6 @@ feature that uses it simply turns itself off when it's blank.
 | Metadata table | `metadata_tsv` | Any per-genome table (Enterobase export, your own spreadsheet) with one column of genome IDs. Drives row labels, colouring, filtering and sort order. Tab- or comma-delimited. |
 | RFE / gene list | `rfe_features_txt` | A list of genes to highlight, one per row, in a `feature` column. An optional `Annotation` column supplies your own name for a gene, used in place of Prokka's; an optional `importance` column is shown alongside it. Despite the name, nothing about it is machine-learning specific. |
 | MGE table | `mge_genes_tsv` | Per-genome mobile-element calls (e.g. geNomad), used to mark genes carried on plasmids or prophage. |
-| stxtyper report | `stxtyper_tsv` | STEC only: combined [stxtyper](https://github.com/ncbi/stxtyper) output. Adds an "stx type (stxtyper)" column for filtering and row labels, and draws the subtype on the stxA/stxB genes themselves. |
 
 A genome is viewable only if its stem is **both** a genome-column header
 in `panaroo_csv` **and** has a matching `<stem>.gff` under `prokka_dir`.
@@ -78,32 +77,6 @@ itself.
    ```
    This produces `panaroo_out/gene_presence_absence.csv`, which is what
    `panaroo_csv` points to.
-3. **Optionally, if these are Shiga-toxin-producing *E. coli*, type the
-   stx operons with [stxtyper](https://github.com/ncbi/stxtyper)** — one
-   run per assembly, concatenated into a single report under one header:
-   ```
-   for fasta in /path/to/assemblies/*.fasta; do
-     strain=$(basename "$fasta" .fasta)          # must match the Prokka stem
-     stxtyper --nucleotide "$fasta" --name "$strain" --output "$strain".tsv
-   done
-   ```
-   **`--name` is what makes the join work.** Set it to the same strain
-   name Prokka's output directory is named after, minus any assembler
-   suffix (`ESC_AC0432AA_AS.result.fasta` → `ESC_AC0432AA_AS`) — that is
-   exactly the `genome_id` the viewer derives via `strip_genome_suffixes`,
-   so the report's `#name` column joins straight on with no
-   normalisation. Name them any other way and nothing will match.
-
-   One wrinkle worth knowing: stxtyper reports coordinates on the
-   *original assembly* contigs, whose names Prokka has replaced. The
-   viewer joins the two back together by **contig length** (`_length_<N>_`
-   in the assembler's contig name against the GFF's `##sequence-region`
-   lines), then takes the CDSs overlapping the operon's coordinates, so
-   stxA and stxB get labelled individually. Where two contigs in a genome
-   share a length and the tie can't be broken by which one actually has
-   genes over that range, the per-gene label is dropped rather than
-   guessed — the genome-level subtype still comes straight from the
-   report.
 
 ## Setup in detail
 
@@ -168,11 +141,6 @@ prokka_dir/
   beneath it, so nothing is hidden. Genes absent from the file, or rows
   with the column blank, keep Prokka's annotation throughout.
 - **MGE table** — checks all four required columns exist.
-- **stxtyper report** — requires
-  `#name`/`stx_type`/`target_contig`/`target_start`/`target_stop` (a
-  missing one is a hard error, not a warning) and reports how many of your
-  genome IDs it actually types, which is the check that catches a report
-  run with the wrong `--name`.
 
 ### Editing the config afterwards
 
