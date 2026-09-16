@@ -201,7 +201,7 @@ The server listens on port 8765 by default; `--port` changes it, e.g.
 
 ## Design notes
 
-`BUILD_NOTES_pangenome_viewer.md` has the fuller history of this tool's
+`dev/BUILD_NOTES_pangenome_viewer.md` has the fuller history of this tool's
 design decisions (gutter markers, the genome-count toggle, the metadata
 filter boxes, the refound-placeholder handling, etc.) from when it lived
 inside the larger analysis project this was extracted from.

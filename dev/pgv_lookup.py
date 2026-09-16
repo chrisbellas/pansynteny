@@ -11,7 +11,8 @@ into one function call.
 Developer tooling, not part of the shipped tool: deliberately NOT wired
 into pangenome_viewer.py's HTTP server, kept separate so it carries
 none of the "no pre-indexing" tradeoffs that were a deliberate design
-choice for the actual viewer (see BUILD_NOTES_pangenome_viewer.md). The
+choice for the actual viewer (see BUILD_NOTES_pangenome_viewer.md,
+alongside this file). The
 index is small on disk, rebuilds in well under a minute, and nothing
 downstream depends on it existing.
 

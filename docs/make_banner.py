@@ -15,14 +15,14 @@ moves everything downstream of it.
 
 Usage:  python3 docs/make_banner.py [source.png]
 
-Needs Pillow, and the source screenshot (default: ./pansynteny.png, a
+Needs Pillow, and the source screenshot (default: dev/pansynteny.png, a
 1470x904 capture of the viewer in dark mode). Re-run after replacing the
 screenshot; the crop and the blank region below may need adjusting to suit.
 """
 from PIL import Image, ImageDraw, ImageFont
 import sys
 
-SRC  = sys.argv[1] if len(sys.argv) > 1 else "pansynteny.png"
+SRC  = sys.argv[1] if len(sys.argv) > 1 else "dev/pansynteny.png"
 CROP = (0, 0, 1470, 600)
 RX0, RX1, RY0, RY1 = 850, 1285, 88, 458   # the empty region of the screenshot
 CX = (RX0 + RX1) // 2
