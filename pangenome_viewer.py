@@ -1865,19 +1865,35 @@ def load_mge_types_for_cluster(anchor_cluster, offsets=None):
     return types
 
 
-def pick_locus(loci, mge_types, g):
+def pick_locus(loci, mge_types, g, genes=None):
     """Pick a genome's locus tag for a gene cluster when Panaroo lists more
     than one paralog copy for it (semicolon-joined loci in the CSV cell).
     Prefer a real Prokka-called locus over a Panaroo "refound" placeholder
     -- a refound locus has no GFF entry to resolve coordinates from at all
     -- then, among real candidates, prefer one classified in `mge_types`
-    (a (genome_id, locus_tag) -> mge_type dict for this anchor cluster)."""
+    (a (genome_id, locus_tag) -> mge_type dict for this anchor cluster).
+
+    Any tie left after that is broken by position, given `genes` (the
+    genome's parsed GFF): the copy furthest upstream in its own reading
+    direction. Panaroo's order within the cell is arbitrary, so taking the
+    first-listed copy anchored a tandem pair on copy 1 in some genomes and
+    copy 2 in others, shifting those rows a gene-width apart and turning
+    every link between them into a diagonal. Every caller passes `genes`
+    so the chart, contig export and sequence panel agree on the copy."""
     if len(loci) == 1:
         return loci[0]
     real = [lt for lt in loci if "refound" not in lt]
     candidates = real if real else loci
     classified = [lt for lt in candidates if (g, lt) in mge_types]
-    return classified[0] if classified else candidates[0]
+    if classified:
+        candidates = classified
+    if genes and len(candidates) > 1 and all(lt in genes for lt in candidates):
+        # genes[lt] = (contig, start, end, strand, product). On the minus
+        # strand the upstream copy is the one with the larger end.
+        candidates = sorted(candidates, key=lambda lt: (
+            genes[lt][0],
+            -genes[lt][2] if genes[lt][3] == "-" else genes[lt][1]))
+    return candidates[0]
 
 
 def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=False):
@@ -1970,7 +1986,8 @@ def build_chart_data(ctx, anchor_cluster, count=DEFAULT_COUNT, include_n_runs=Fa
                 stx_loci[g] = mapping
             stx_stats.update(call_stats)
 
-    anchor_locus = {g: pick_locus(present[g], mge_types, g) for g in sample_genome_ids}
+    anchor_locus = {g: pick_locus(present[g], mge_types, g, gff_genes.get(g))
+                    for g in sample_genome_ids}
 
     col_for_genome = {g: stem for g, stem in stems.items()}
     reverse_map = {g: {} for g in stems}
@@ -2388,9 +2405,9 @@ def build_contig_export(ctx, anchor_cluster, genome_ids):
         if not loci:
             warnings.append(f"{g}: not a carrier of {anchor_cluster}")
             continue
-        locus = pick_locus(loci, mge_types, g)
         stem = ctx.genome_stem_map[g]
         genes, _seqlens, _non_cds = parse_gff(stem)
+        locus = pick_locus(loci, mge_types, g, genes)
         if locus not in genes:
             warnings.append(f"{g}: locus {locus} has no GFF entry (refound placeholder)")
             continue
@@ -2443,8 +2460,11 @@ def build_sequence_response(ctx, anchor_cluster, genome_id=None):
             strain = {"note": f"{genome_id} is not a resolvable carrier of {anchor_cluster}"}
         else:
             mge_types = load_mge_types_for_cluster(anchor_cluster, ctx.mge_offsets)
-            locus = pick_locus(loci, mge_types, genome_id)
             stem = ctx.genome_stem_map[genome_id]
+            # Parsed only when there is a choice to make, so the common
+            # single-copy case stays a pure .faa/.ffn lookup.
+            genes = parse_gff(stem)[0] if len(loci) > 1 else None
+            locus = pick_locus(loci, mge_types, genome_id, genes)
             aa = extract_faa_record(stem, locus)
             nt = extract_ffn_record(stem, locus)
             if not aa and not nt:
