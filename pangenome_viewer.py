@@ -352,7 +352,10 @@ WEAK_JOIN_FRACTION = 0.10
 # Config keys the walkthrough never prompts for; an existing value for one
 # of these is preserved verbatim rather than blanked on a re-run.
 UNPROMPTED_KEYS = ("test_predictions_csv", "test_predictions_genome_col",
-                    "test_predictions_score_col")
+                    "test_predictions_score_col",
+                    # Asked about by _setup_mge/_setup_stxtyper, which are
+                    # parked (not called) for now -- see run_setup().
+                    "mge_genes_tsv", "stxtyper_tsv")
 
 
 def _use_color():
@@ -520,7 +523,7 @@ def _setup_panaroo(default=None):
     """(csv path, genome-column stems). Accepts either the Panaroo output
     directory or the gene_presence_absence.csv inside it -- the directory
     is what people have in hand."""
-    print("\n--- 1/6: Panaroo (required) ---")
+    print("\n--- 1/4: Panaroo (required) ---")
     while True:
         path = _prompt_path("Panaroo output dir, or gene_presence_absence.csv directly",
                              default=default)
@@ -549,7 +552,7 @@ def _setup_prokka(stems, default=None):
     """(prokka dir, stems that actually have a GFF). Mirrors
     build_genome_stem_map()'s rule exactly -- <stem>/<stem>.gff -- so the
     number reported here is the number of genomes the viewer will show."""
-    print("\n--- 2/6: Prokka (required) ---")
+    print("\n--- 2/4: Prokka (required) ---")
     print("Expected layout: one subdirectory per genome, <stem>/<stem>.gff")
     while True:
         path = _prompt_path("Prokka output dir", must_be_dir=True, default=default)
@@ -619,9 +622,9 @@ def detect_stem_suffixes(matched_stems):
 
 
 def _setup_strip_suffixes(matched_stems, default=None):
-    """Cosmetic display-only suffix stripping -- but it decides what the
-    genome IDs look like, so it also decides whether the metadata join in
-    the next step can work at all."""
+    """Cosmetic display-only suffix stripping, applied automatically -- but
+    it decides what the genome IDs look like, so it also decides whether
+    the metadata join in the next step can work at all."""
     suffixes = detect_stem_suffixes(matched_stems)
     if not suffixes:
         return default or ""
@@ -643,12 +646,12 @@ def _setup_strip_suffixes(matched_stems, default=None):
     else:
         example_stripped = example
     print(f"  covers {covered}/{len(matched_stems)} stems; "
-          f"{example!r} would display as {example_stripped!r}")
-    print("Stripping is display-only -- it does not change which files are read --")
-    print("but the stripped ID is what the metadata join below matches on.")
-    if _prompt_yes_no("Strip these for display?", default=True):
-        return ",".join(suffixes)
-    return ""
+          f"{example!r} will display as {example_stripped!r}")
+    # Applied without asking: it only changes the displayed genome ID, never
+    # which files are read, and declining it was only ever a way to break
+    # the metadata join below (the stripped ID is what that join matches).
+    print("  stripped for display (edit strip_genome_suffixes in the config to change)")
+    return ",".join(suffixes)
 
 
 # Column names worth trying for the antigen/source roles before falling
@@ -702,8 +705,11 @@ def _setup_metadata(genome_ids, defaults=None):
     metadata table and the proposal is evidence rather than a guess. The
     user still confirms or overrides it."""
     defaults = defaults or {}
-    print("\n--- 3/6: genome metadata TSV (optional) ---")
-    print("Adds serotype/host row grouping and the client-side filter boxes.")
+    print("\n--- 3/4: Metadata table (optional) ---")
+    print("Any per-genome information you want to show: row labels, grouping")
+    print("and the filter boxes. One column must match the genome file names")
+    example = sorted(genome_ids)[0] if genome_ids else "GENOME_1"
+    print(f"minus their extension (e.g. {example!r}).")
     blank = {k: "" for k in ("metadata_tsv", "metadata_join_col",
                              "metadata_o_antigen_col", "metadata_h_antigen_col",
                              "metadata_source_col")}
@@ -750,8 +756,8 @@ def _setup_metadata(genome_ids, defaults=None):
                     print(f"    {best_sfx!r} matches {sfx[best_sfx]} of "
                           f"{len(genome_ids)} genomes once "
                           f"{'/'.join(suffixes_now)} is stripped from the stems.")
-                    print("    That is the stem-suffix question in step 2 -- answer 'n'")
-                    print("    here, re-run, and accept the suffix stripping.")
+                    print("    Add that suffix to strip_genome_suffixes in the config,")
+                    print("    or answer 'n' here and pick the column anyway.")
                     proposed = best_sfx
                     probe = best_sfx
             best_trimmed = (max(trimmed_scores, key=lambda c: trimmed_scores[c])
@@ -819,39 +825,23 @@ def _setup_metadata(genome_ids, defaults=None):
             if not _prompt_yes_no("  That's a very partial join. Keep it?", default=False):
                 continue
 
-        print("\nThe O and H antigen columns are combined into one serotype used for")
-        print("row grouping and coloring -- both are needed, or neither.")
-        o_default = _pick_known(header, KNOWN_O_ANTIGEN_COLS,
-                                 defaults.get("metadata_o_antigen_col"))
-        h_default = _pick_known(header, KNOWN_H_ANTIGEN_COLS,
-                                 defaults.get("metadata_h_antigen_col"))
-        if o_default and h_default:
-            print(f"  found {o_default!r} and {h_default!r}")
-            if _prompt_yes_no("  Use these?", default=True):
-                o_col, h_col = o_default, h_default
-            else:
-                o_col = _prompt_column("O antigen column?", header, optional=True,
-                                        default=o_default)
-                h_col = _prompt_column("H antigen column?", header, optional=True,
-                                        default=h_default)
+        # Serotype is not asked about: if both antigen columns are there
+        # (by a name set in an existing config, or a recognised Enterobase
+        # name) they are combined into the serotype, otherwise it is skipped.
+        o_col = _pick_known(header, KNOWN_O_ANTIGEN_COLS,
+                            defaults.get("metadata_o_antigen_col"))
+        h_col = _pick_known(header, KNOWN_H_ANTIGEN_COLS,
+                            defaults.get("metadata_h_antigen_col"))
+        if o_col and h_col:
+            print(f"\n  serotype: combining {o_col!r} + {h_col!r}")
         else:
-            # One recognised column is still a useful starting point, so
-            # say which was found and offer it rather than reporting none.
-            found = o_default or h_default
+            found = o_col or h_col
             if found:
-                print(f"  found {found!r}, but both O and H are needed for the "
-                      "computed serotype.")
+                print(f"\n  serotype: only {found!r} found -- both O and H are needed, skipping")
             else:
-                print("  no recognised O/H antigen columns in this file.")
-            if _prompt_yes_no("  Pick them manually?", default=bool(found)):
-                o_col = _prompt_column("O antigen column?", header, optional=True,
-                                        default=o_default)
-                h_col = _prompt_column("H antigen column?", header, optional=True,
-                                        default=h_default)
-            else:
-                o_col = h_col = None
-        if bool(o_col) != bool(h_col):
-            print("  only one of the two given -- skipping the computed serotype column")
+                print("\n  serotype: no recognised O/H antigen columns -- skipping")
+            print("    (set metadata_o_antigen_col / metadata_h_antigen_col in the config")
+            print("    by hand if your table names them differently)")
             o_col = h_col = None
 
         source_default = _pick_known(header, KNOWN_SOURCE_COLS,
@@ -899,13 +889,15 @@ def _setup_rfe(panaroo_csv, default=None):
     blocking rather than a warning: load_rfe_importance() subscripts
     row["feature"] directly, so accepting one here would just move the
     failure to a KeyError at startup."""
-    print("\n--- 4/6: RFE / genes-of-interest TSV (optional) ---")
-    print("Tab- or comma-delimited, with a 'feature' column of Panaroo cluster")
-    print("names, plus optional 'importance' and 'Annotation' columns.")
+    print("\n--- 4/4: Genes/features to highlight (optional) ---")
+    print("Tab- or comma-delimited, with a 'feature' column whose values must")
+    print("match Panaroo cluster names (e.g. group_1234), plus optional")
+    print("'importance' and 'Annotation' columns.")
     while True:
-        path = _prompt_path("RFE features table", optional=True, default=default)
+        path = _prompt_path("Genes/features to highlight table", optional=True,
+                             default=default)
         if path is None:
-            print("  skipped -- no gene coloring, no RFE badges in search")
+            print("  skipped -- no highlighted genes, no highlight badges in search")
             return ""
         header = _read_header(path)
         if not header:
@@ -1064,7 +1056,7 @@ def render_config(values):
 
 
 def run_setup(config_path):
-    """Walk the six required/optional inputs, validate each against the
+    """Walk the four required/optional inputs, validate each against the
     ones already given, and write config_path. Returns nothing -- the
     caller exits afterwards, since the settings the user just chose are
     read back from disk on the next run like any other config file."""
@@ -1111,8 +1103,12 @@ def run_setup(config_path):
     values.update(_setup_metadata(genome_ids, defaults))
     values["rfe_features_txt"] = _setup_rfe(panaroo_csv,
                                              defaults.get("rfe_features_txt"))
-    values["mge_genes_tsv"] = _setup_mge(defaults.get("mge_genes_tsv"))
-    values["stxtyper_tsv"] = _setup_stxtyper(genome_ids, defaults.get("stxtyper_tsv"))
+    # MGE and stxtyper are parked: not asked about, set by hand in the
+    # config, and an existing value is carried over via UNPROMPTED_KEYS.
+    # To bring them back, restore these two calls and drop the keys from
+    # UNPROMPTED_KEYS (and renumber the step headers).
+    # values["mge_genes_tsv"] = _setup_mge(defaults.get("mge_genes_tsv"))
+    # values["stxtyper_tsv"] = _setup_stxtyper(genome_ids, defaults.get("stxtyper_tsv"))
 
     # Carry through only the settings this walkthrough never asks about,
     # so an existing test-score table isn't silently dropped. Scoped to

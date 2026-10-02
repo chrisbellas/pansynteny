@@ -44,9 +44,9 @@ feature that uses it simply turns itself off when it's blank.
 |---|---|---|
 | **Panaroo output** | `panaroo_csv` | `gene_presence_absence.csv` from a Panaroo run. Give `--setup` either this file or the directory holding it. |
 | **Prokka output** | `prokka_dir` | One subdirectory per genome, each containing `<stem>.gff`. Every gene name and annotation shown in the viewer is read from these GFFs. Layout below. |
-| Metadata table | `metadata_tsv` | Any per-genome table (Enterobase export, your own spreadsheet) with one column of genome IDs. Drives row labels, colouring, filtering and sort order. Tab- or comma-delimited. |
-| RFE / gene list | `rfe_features_txt` | A list of genes to highlight, one per row, in a `feature` column. An optional `Annotation` column supplies your own name for a gene, used in place of Prokka's; an optional `importance` column is shown alongside it. Despite the name, nothing about it is machine-learning specific. |
-| MGE table | `mge_genes_tsv` | Per-genome mobile-element calls (e.g. geNomad), used to mark genes carried on plasmids or prophage. |
+| Metadata table | `metadata_tsv` | Any per-genome table (Enterobase export, your own spreadsheet) with one column matching the genome file names minus their extension. Drives row labels, colouring, filtering and sort order. Tab- or comma-delimited. |
+| Genes to highlight | `rfe_features_txt` | A list of genes to highlight, one per row, in a `feature` column whose values are Panaroo cluster names. An optional `Annotation` column supplies your own name for a gene, used in place of Prokka's; an optional `importance` column is shown alongside it. Despite the name, nothing about it is machine-learning specific. |
+| MGE table | `mge_genes_tsv` | Per-genome mobile-element calls (e.g. geNomad), used to mark genes carried on plasmids or prophage. Not asked by `--setup`; set it in the config. |
 
 A genome is viewable only if its stem is **both** a genome-column header
 in `panaroo_csv` **and** has a matching `<stem>.gff` under `prokka_dir`.
@@ -115,18 +115,22 @@ prokka_dir/
   prints example stems from both sides so you can see the naming
   mismatch.
 - **Stem suffixes** — detects assembler suffixes on the genome stems
-  (`.result`, `.scaffold`, `.result.fasta`, ...) and offers to strip
-  them. A cohort assembled by more than one route carries a *mix* of
-  these, which is handled; the stripped ID is what the metadata join
-  matches on, so this matters beyond cosmetics.
+  (`.result`, `.scaffold`, `.result.fasta`, ...) and strips them from
+  the displayed genome IDs without asking. A cohort assembled by more
+  than one route carries a *mix* of these, which is handled; the
+  stripped ID is what the metadata join matches on, so this matters
+  beyond cosmetics.
 - **Metadata** — scores *every* column against your genome IDs and
   proposes the one that actually joins best, which you confirm or
   override. A column that exists but joins to nothing is otherwise
   invisible until every row shows up as `Unknown`. If nothing joins at
   all, it prints genome IDs next to the closest column's values, since
-  the usual cause is the suffix question above rather than the file.
-  Recognised Enterobase antigen/source columns are offered by name.
-- **RFE features** — requires a `feature` column (a missing one is a hard
+  the usual cause is an unstripped stem suffix rather than the file.
+  If the Enterobase O and H antigen columns are both present they are
+  combined into the serotype without asking (otherwise serotype is
+  skipped; set the two column names in the config by hand). A recognised
+  host/source column is offered by name.
+- **Genes to highlight** — requires a `feature` column (a missing one is a hard
   error, not a warning), reports whether `importance` and `Annotation`
   are present, and counts how many features resolve to a real Panaroo
   cluster. This file and the metadata table may be tab- or
@@ -140,7 +144,6 @@ prokka_dir/
   results it is shown on the title line with Prokka's own annotation still
   beneath it, so nothing is hidden. Genes absent from the file, or rows
   with the column blank, keep Prokka's annotation throughout.
-- **MGE table** — checks all four required columns exist.
 
 ### Editing the config afterwards
 
