@@ -122,6 +122,10 @@
   --accent: #2a78d6;
 }
 * { box-sizing: border-box; }
+/* Reserve the vertical scrollbar's width from the start: otherwise it
+   appears only once a chart is drawn, narrowing the chart box after the
+   plot was already sized to fit it (see livePlotW). */
+html { scrollbar-gutter: stable; }
 body {
   margin: 0; padding: 32px 24px 80px; background: var(--page); color: var(--text-primary);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -589,7 +593,7 @@ footer { margin-top: 22px; color: var(--text-muted); font-size: 11.5px; }
       <p class="note" id="note"></p>
     </details>
 
-    <div class="legend-label">Key &mdash; RFE selected features</div>
+    <div class="legend-label">Key &mdash; selected genes/features</div>
     <div class="legend" id="legend"></div>
 
     <div class="chart-scroll">
@@ -1509,7 +1513,7 @@ function renderChart(data) {
       const label = (data.cluster_labels[c] || c).split(";")[0];
       items.push(`<div class="legend-item" data-cluster="${escapeHtml(c)}"><div class="swatch" style="background:${clusterColor[c]}"></div>${escapeHtml(c)} — ${escapeHtml(label.slice(0,38))}</div>`);
     });
-    items.push(`<div class="legend-item"><div class="swatch" style="background:var(--rfe-other-fill)"></div>other RFE feature</div>`);
+    items.push(`<div class="legend-item"><div class="swatch" style="background:var(--rfe-other-fill)"></div>other selected gene/feature</div>`);
     items.push(`<div class="legend-item"><div class="swatch anchor-swatch" style="background:var(--anchor-fill)"></div>anchor gene (${escapeHtml(anchorLabel)})</div>`);
     if (data.n_runs_included) items.push(`<div class="legend-item"><div class="swatch" style="background:var(--n-gap)"></div>assembly gap (run of N, &ge;${data.min_n_run || 10}bp)</div>`);
     if (nonCdsToggle.checked) {
@@ -2331,6 +2335,28 @@ function renderChart(data) {
     return { width: totalW, height: totalH };
   }
 
+  // Fit the gene plot to the chart box, so the Quick comparison column
+  // can't end up just past the right edge behind an easy-to-miss scrollbar
+  // (a fixed 1280px plot overflowed a 1920px window by ~30px). The label
+  // column and the gutter keep their widths -- these constants mirror
+  // renderTracks' labelW/markerLeftPad/markerSize+markerGap and its +20
+  // margin -- and only the plot flexes, down to a floor below which the
+  // box scrolls as before.
+  const livePlotW = () => {
+    const box = document.querySelector(".chart-scroll").clientWidth;
+    if (!box) return 1280;
+    const gutterW = 14 + data.top_rfe_clusters.length * (9 + 3);
+    return Math.max(600, box - 320 - gutterW - 20);
+  };
+  // window.onresize rather than addEventListener, for the same reason as
+  // document.onkeydown below: renderChart re-runs per anchor, and each run
+  // must replace the previous chart's handler, not stack another.
+  let resizeTimer = null;
+  window.onresize = () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => draw(Number(windowSelect.value)), 200);
+  };
+
   function draw(windowBp) {
     svg.innerHTML = "";
     pinnedCluster = null;
@@ -2357,7 +2383,7 @@ function renderChart(data) {
     if (!reorderable || !shown.some(r => r.genome_id === activeMoveId)) activeMoveId = null;
     // The stx key tracks the filtered set, so rebuild it alongside the tracks.
     buildLegend();
-    const dim = renderTracks(svg, { rows: shown, extentRows: shown, windowBp, live: true, flatOrder: reorderable });
+    const dim = renderTracks(svg, { rows: shown, extentRows: shown, windowBp, live: true, flatOrder: reorderable, plotW: livePlotW() });
     svg.setAttribute("width", dim.width);
     svg.setAttribute("height", dim.height);
     svg.setAttribute("viewBox", `0 0 ${dim.width} ${dim.height}`);
@@ -2477,7 +2503,7 @@ function renderChart(data) {
       const fill = resolve(clusterColor[c] || "var(--rfe-other-fill)");
       place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill })), `${c} — ${label.slice(0, 38)}`, swW);
     });
-    [["other RFE feature", "var(--rfe-other-fill)"]].forEach(([txt, v]) => {
+    [["other selected gene/feature", "var(--rfe-other-fill)"]].forEach(([txt, v]) => {
       const fill = resolve(v);
       place((x, y) => g.appendChild(el("rect", { x, y: y + 1, width: swW, height: swH, rx: 2, fill })), txt, swW);
     });
