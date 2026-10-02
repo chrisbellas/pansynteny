@@ -170,6 +170,27 @@ python3 pangenome_viewer.py --panaroo-csv /abs/path.csv --prokka-dir /abs/dir
 The server listens on port 8765 by default; `--port` changes it, e.g.
 `--port 9000` (adjust both `8765`s in the SSH tunnel to match).
 
+### Multiple datasets
+
+`--config` points at a config file other than the default
+`pangenome_viewer.config` next to the script, so each dataset can have
+its own:
+```
+python3 pangenome_viewer.py --setup --config ~/configs/cohortB.config
+python3 pangenome_viewer.py --config ~/configs/cohortB.config
+```
+To browse two at once, give each its own port (and its own SSH tunnel);
+each server holds its own dataset in memory:
+```
+python3 pangenome_viewer.py --config cohortA.config --port 8790 &
+python3 pangenome_viewer.py --config cohortB.config --port 8791 &
+```
+The byte-offset caches (`cluster_offsets.json`, `mge_offsets.json`) live
+next to the script, not next to the config, so they hold one dataset at a
+time. Switching datasets is detected and the cache rebuilt, which only
+costs a slower startup; a separate copy of the folder per dataset avoids
+the rebuilds altogether.
+
 ## Design notes
 
 `dev/BUILD_NOTES_pangenome_viewer.md` has the fuller history of this tool's
