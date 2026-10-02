@@ -1924,10 +1924,11 @@ function renderChart(data) {
       ? { class: "anchor-line", x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4 + offsetY + colLabelH, y2: totalH - 16 }
       : { x1: plotX0 + scaleX(0), x2: plotX0 + scaleX(0), y1: 4 + offsetY + colLabelH, y2: totalH - 16, stroke: resolve("var(--text-muted)"), "stroke-width": 1, "stroke-dasharray": "2 3" }));
 
-    // Gene links: a per-cluster sweep down drawnOrder (including across a
+        // Gene links: a per-cluster sweep down drawnOrder (including across a
     // serotype-section boundary), connecting each gene to the *nearest* row
     // above it that also carries its cluster -- not necessarily the very
-    // next row. When that nearest hit is the immediately adjacent row, it
+    // next row -- and, where either row holds several copies of that cluster,
+    // linking every copy rather than one arbitrary pick (see pairCopies). When that nearest hit is the immediately adjacent row, it
     // draws as the wide trapezoid ribbon (as before). When it isn't -- the
     // gene is missing from one or more rows in between and reappears
     // further down -- it draws as a thin, faint line instead, connecting
@@ -1958,17 +1959,63 @@ function renderChart(data) {
       const topY = r => yOf.get(r) + geneTopOff;
       const midX = g => { const [a, b] = spanX(g.start, g.end); return plotX0 + (a + b) / 2; };
 
-      const lastSeen = new Map();   // cluster -> { row, gene, rowIndex } of its most recent occurrence so far
+      // A genome can carry more than one copy of a cluster inside the window
+      // (Panaroo writes them as a semicolon-joined cell, and every locus in
+      // that cell maps back to the same cluster), so each row contributes a
+      // *group* of copies per cluster rather than a single gene. Pairing the
+      // two groups all-to-all would draw crossing ribbons for two-against-two,
+      // which in a synteny chart reads as an inversion that isn't there --
+      // so each copy below takes its nearest copy above, then any copy above
+      // left unlinked takes its nearest below. One-against-two fans out,
+      // two-against-two stays parallel, and an n-copy cluster costs ~2n
+      // ribbons instead of n^2.
+      const mid = g => (g.start + g.end) / 2;
+      const pairCopies = (above, below) => {
+        if (above.length === 1 && below.length === 1) return [[above[0], below[0]]];
+        const nearestIdx = (g, list) => {
+          let bi = 0, bd = Math.abs(mid(list[0]) - mid(g));
+          for (let k = 1; k < list.length; k++) {
+            const d = Math.abs(mid(list[k]) - mid(g));
+            if (d < bd) { bd = d; bi = k; }
+          }
+          return bi;
+        };
+        const out = [], taken = new Set(), usedAbove = new Set();
+        const add = (ai, bi) => {
+          const k = ai + ":" + bi;
+          if (taken.has(k)) return;
+          taken.add(k); usedAbove.add(ai);
+          out.push([above[ai], below[bi]]);
+        };
+        below.forEach((b, bi) => add(nearestIdx(b, above), bi));
+        above.forEach((a, ai) => { if (!usedAbove.has(ai)) add(ai, nearestIdx(a, below)); });
+        return out;
+      };
+
+      // cluster -> { row, genes, rowIndex } of its most recent occurrence so
+      // far. Grouping per row also means same-row copies never link to each
+      // other, which the old single-gene map did produce (as a zero-height
+      // "skip" link that only the geometry guard below threw away).
+      const lastSeen = new Map();
       const skipLinks = [], adjacentLinks = [];
       drawnOrder.forEach((r, i) => {
+        const here = new Map();
         genesInWindow(r).forEach(g => {
           if (!g.cluster || g.cluster === "NA") return;
-          const prev = lastSeen.get(g.cluster);
+          let copies = here.get(g.cluster);
+          if (!copies) here.set(g.cluster, copies = []);
+          copies.push(g);
+        });
+        here.forEach((genes, cluster) => {
+          const prev = lastSeen.get(cluster);
           if (prev) {
-            const link = { rAbove: prev.row, gAbove: prev.gene, rBelow: r, gBelow: g, skip: i - prev.rowIndex - 1 };
-            (link.skip === 0 ? adjacentLinks : skipLinks).push(link);
+            const skip = i - prev.rowIndex - 1;
+            pairCopies(prev.genes, genes).forEach(([gAbove, gBelow]) => {
+              (skip === 0 ? adjacentLinks : skipLinks)
+                .push({ rAbove: prev.row, gAbove, rBelow: r, gBelow, skip });
+            });
           }
-          lastSeen.set(g.cluster, { row: r, gene: g, rowIndex: i });
+          lastSeen.set(cluster, { row: r, genes, rowIndex: i });
         });
       });
 
